@@ -821,7 +821,9 @@ export const AuctionHouse: React.FC<AuctionHouseProps> = ({
 													val
 												)}
 											>
-												{formatStatValue(val)}
+												{formatStatValue(
+													Number(val.toFixed(0))
+												)}
 												{key === 'weight' ? 'kg' : ''}
 											</span>
 										</div>
