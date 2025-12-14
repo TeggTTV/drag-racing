@@ -54,14 +54,9 @@ export const Preloader: React.FC<PreloaderProps> = ({ onComplete }) => {
 	useEffect(() => {
 		if (loaded && !showProgress) {
 			// Slight delay to ensure progress bar fade completes before button appears
-			setTimeout(() => setShowButton(true), 200);
+			setTimeout(() => onComplete(), 200);
 		}
 	}, [loaded, showProgress]);
-
-	const handleStart = () => {
-		// Initialize Audio Contexts on user gesture
-		onComplete();
-	};
 
 	return (
 		<div className="fixed inset-0 bg-black z-[9999] flex flex-col items-center justify-center text-white">
@@ -82,18 +77,9 @@ export const Preloader: React.FC<PreloaderProps> = ({ onComplete }) => {
 			)}
 
 			<div className="h-8">
-				{showButton ? (
-					<button
-						onClick={handleStart}
-						className="px-8 py-2 bg-white text-black font-bold font-mono rounded-full hover:bg-indigo-400 hover:text-white transition-opacity duration-500 opacity-100"
-					>
-						CLICK TO START
-					</button>
-				) : (
-					<span className="text-xs text-gray-500 font-mono">
-						LOADING ASSETS... {progress}%
-					</span>
-				)}
+				<span className="text-xs text-gray-500 font-mono">
+					LOADING ASSETS... {progress}%
+				</span>
 			</div>
 		</div>
 	);

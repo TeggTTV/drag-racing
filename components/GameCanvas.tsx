@@ -612,6 +612,7 @@ const GameCanvas: React.FC = () => {
 		setDefeatedRivals,
 		missions,
 		setMissions,
+		audioRef,
 		opponentAudioRef,
 		raceFinishedProcessingRef,
 		currentGhostRecording,

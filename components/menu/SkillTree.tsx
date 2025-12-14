@@ -56,11 +56,35 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ onClose }) => {
 		showToast(`Unlocked ${node.name}!`, 'SUCCESS');
 	};
 
+	// Pan/Zoom State
+	const [pan, setPan] = useState({ x: 0, y: 0 });
+	const [isDragging, setIsDragging] = useState(false);
+	const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
+
+	const handleMouseDown = (e: React.MouseEvent) => {
+		setIsDragging(true);
+		setLastMousePos({ x: e.clientX, y: e.clientY });
+	};
+
+	const handleMouseMove = (e: React.MouseEvent) => {
+		if (!isDragging) return;
+		const dx = e.clientX - lastMousePos.x;
+		const dy = e.clientY - lastMousePos.y;
+		setPan((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
+		setLastMousePos({ x: e.clientX, y: e.clientY });
+	};
+
+	const handleMouseUp = () => {
+		setIsDragging(false);
+	};
+
 	// Determine node position / scale
 	const SCALE_X = 140;
 	const SCALE_Y = 140;
-	const CENTER_X = 600;
-	const CENTER_Y = 650;
+	// Center the tree relative to the container center plus pan
+	// Default center offset adjusted to center 'driver_root' (0,0) comfortably
+	const CENTER_X = 800 + pan.x;
+	const CENTER_Y = 600 + pan.y;
 
 	// Helper: Check unlock status
 	const isUnlocked = (id: string) => unlocked.includes(id);
@@ -137,7 +161,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ onClose }) => {
 		<div className="fixed inset-0 bg-black/90 z-[150] flex flex-col items-center justify-center backdrop-blur-md">
 			<div className="relative w-full max-w-6xl h-[85vh] bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden shadow-2xl flex flex-row font-sans">
 				{/* --- LEFT SIDEBAR (Info) --- */}
-				<div className="w-[350px] bg-slate-800/80 border-r border-slate-700 p-8 flex flex-col relative z-20 backdrop-blur-md shadow-xl">
+				<div className="w-[350px] bg-slate-800/90 border-r border-slate-700 p-8 flex flex-col relative z-20 backdrop-blur-md shadow-xl">
 					<div className="mb-8">
 						<h2 className="text-4xl font-black text-white italic tracking-tighter uppercase mb-2 drop-shadow-lg">
 							Driver Skills
@@ -265,23 +289,34 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ onClose }) => {
 				</div>
 
 				{/* --- MAIN CONTENT (Grid) --- */}
-				<div className="flex-1 relative overflow-hidden bg-slate-900 perspective-1000">
+				<div
+					className="flex-1 relative overflow-hidden bg-slate-900 perspective-1000 cursor-move"
+					onMouseDown={handleMouseDown}
+					onMouseMove={handleMouseMove}
+					onMouseUp={handleMouseUp}
+					onMouseLeave={handleMouseUp}
+				>
 					{/* Animated Grid Background */}
 					<div
-						className="absolute inset-0 opacity-20"
+						className="absolute inset-0 opacity-20 pointer-events-none"
 						style={{
 							backgroundImage: `linear-gradient(#334155 1px, transparent 1px), linear-gradient(90deg, #334155 1px, transparent 1px)`,
 							backgroundSize: '40px 40px',
-							backgroundPosition: 'center center',
+							backgroundPosition: `${pan.x}px ${pan.y}px`, // Pan background slightly
 						}}
 					></div>
 					<div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-transparent to-slate-900 pointer-events-none"></div>
 
-					<svg className="absolute inset-0 w-full h-full z-0">
+					{/* Helper Text */}
+					<div className="absolute top-4 right-4 text-slate-500 text-xs font-mono pointer-events-none z-50">
+						DRAG TO PAN
+					</div>
+
+					<svg className="absolute inset-0 w-full h-full z-0 pointer-events-none">
 						{SKILL_TREE.map(renderConnection)}
 					</svg>
 
-					<div className="absolute inset-0 z-10 w-full h-full">
+					<div className="absolute inset-0 z-10 w-full h-full pointer-events-none">
 						{SKILL_TREE.map((node) => {
 							const active = isUnlocked(node.id);
 							const available = canUnlock(node);
@@ -295,8 +330,11 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ onClose }) => {
 									key={node.id}
 									onMouseEnter={() => setHoverNode(node)}
 									// onMouseLeave={() => setHoverNode(null)} // Keep selected for better UX
-									onClick={() => handleUnlock(node)}
-									className={`absolute flex items-center justify-center rounded-full cursor-pointer transition-all duration-300
+									onClick={(e) => {
+										e.stopPropagation(); // Prevent drag start
+										handleUnlock(node);
+									}}
+									className={`absolute flex items-center justify-center rounded-full cursor-pointer transition-all duration-300 pointer-events-auto
                                         ${
 											active
 												? 'w-20 h-20 -m-10 z-20 shadow-[0_0_30px_rgba(251,191,36,0.4)]'
@@ -306,6 +344,9 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ onClose }) => {
 									style={{
 										left: `${left}px`,
 										top: `${top}px`,
+										transform: active
+											? 'scale(1.1)'
+											: 'scale(1)',
 									}}
 								>
 									{/* Outer Ring */}
@@ -322,7 +363,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ onClose }) => {
 									></div>
 
 									{/* Inner Icon */}
-									<div className="relative z-10 text-2xl filter drop-shadow-md">
+									<div className="relative z-10 text-2xl filter drop-shadow-md select-none">
 										{node.branch === 'DRIVER'
 											? '🏎️'
 											: node.branch === 'MECHANIC'

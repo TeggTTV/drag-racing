@@ -44,7 +44,10 @@ export const useRaceEvents = (
 	// Helper to calculate active bonuses
 	const getSkillBonus = useCallback(
 		(stat: string) => {
-			// console.log(`DEBUG SKILL BONUS: Checking ${stat}`);
+			console.log(
+				`DEBUG SKILL BONUS: Checking ${stat}`,
+				settings?.skills?.unlocked
+			);
 			if (
 				!settings ||
 				!settings.skills ||
