@@ -29,6 +29,7 @@ import { CrateShop } from './menu/shop/CrateShop'; // Import CrateShop
 
 import { AuctionHouse } from './menu/auction/AuctionHouse';
 import { Garage } from './menu/garage/Garage';
+import { SkillTree } from './menu/SkillTree';
 import { InventoryItem, Crate } from '../types';
 import { ItemGenerator } from '../utils/ItemGenerator';
 import { ItemMerge } from '../utils/ItemMerge';
@@ -97,6 +98,7 @@ export const GameMenu = () => {
 	const { token, user } = useAuth();
 	const { play } = useSound();
 	const [showSettings, setShowSettings] = useState(false);
+	const [showSkills, setShowSkills] = useState(false);
 	const [activeListings, setActiveListings] = useState<AuctionListing[]>([]);
 
 	const handleBuyCrate = async (crate: Crate, amount: number) => {
@@ -796,6 +798,16 @@ export const GameMenu = () => {
 									DAILY REWARDS
 								</button> */}
 								<button
+									onClick={() => setShowSkills(true)}
+									className="pixel-btn text-center py-2 text-lg bg-teal-900 border-teal-700 text-teal-400 hover:bg-teal-800"
+									style={{
+										backgroundColor: '#134e4a', // teal-900
+										borderColor: '#0f766e', // teal-700
+									}}
+								>
+									SKILLS
+								</button>
+								<button
 									onClick={() => setShowSettings(true)}
 									className="pixel-btn text-center py-2 text-lg bg-gray-800 border-gray-600 text-slate-400"
 								>
@@ -807,6 +819,11 @@ export const GameMenu = () => {
 								isOpen={showSettings}
 								onClose={() => setShowSettings(false)}
 							/>
+							{showSkills && (
+								<SkillTree
+									onClose={() => setShowSkills(false)}
+								/>
+							)}
 						</div>
 					)}
 

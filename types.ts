@@ -15,6 +15,28 @@ export type GamePhase =
 
 export type RaceStatus = 'IDLE' | 'COUNTDOWN' | 'RACING' | 'FINISHED';
 
+export type SkillBranch = 'MECHANIC' | 'DRIVER' | 'TYCOON';
+
+export interface SkillNode {
+	id: string;
+	name: string;
+	description: string;
+	cost: number;
+	branch: SkillBranch;
+	parentId: string | null;
+	x: number;
+	y: number;
+	stats: {
+		repairCostMultiplier?: number;
+		salvageYieldMultiplier?: number;
+		shiftWindowMultiplier?: number;
+		reactionTimeBonus?: number;
+		racePayoutMultiplier?: number;
+		marketFeeMultiplier?: number;
+		xpGainMultiplier?: number;
+	};
+}
+
 export interface InputState {
 	gas: boolean;
 	shiftUp: boolean;

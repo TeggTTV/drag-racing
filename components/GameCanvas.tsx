@@ -502,6 +502,30 @@ const GameCanvas: React.FC = () => {
 	const [countdownNum, setCountdownNum] = useState<number | string>('');
 	const [missedGearAlert, setMissedGearAlert] = useState(false);
 
+	// --- SAFETY FALLBACK: Ensure Race Result is set if Physics is Finished ---
+	useEffect(() => {
+		if (uiState.player.finished && !raceResult && raceStatus === 'RACING') {
+			console.log(
+				'🚑 Fallback: Physics finished but no result. Forcing WIN.'
+			);
+			// Determine win/loss basics (simplified)
+			if (
+				uiState.opponent.finished &&
+				uiState.opponent.finishTime < uiState.player.finishTime
+			) {
+				setRaceResult('LOSS');
+			} else {
+				setRaceResult('WIN');
+			}
+			setRaceStatus('FINISHED');
+		}
+	}, [
+		uiState.player.finished,
+		uiState.opponent.finished,
+		raceResult,
+		raceStatus,
+	]);
+
 	// --- Input Handling ---
 	const inputsRef = useGameInput(
 		phase,
@@ -588,10 +612,10 @@ const GameCanvas: React.FC = () => {
 		setDefeatedRivals,
 		missions,
 		setMissions,
-		audioRef,
 		opponentAudioRef,
 		raceFinishedProcessingRef,
-		currentGhostRecording
+		currentGhostRecording,
+		settings
 	);
 
 	const { drawFrame, drawMenuBackground } = useRaceRenderer();
@@ -605,7 +629,15 @@ const GameCanvas: React.FC = () => {
 			audioRef.current.start();
 			opponentAudioRef.current.start();
 		}
-	}, [phase]);
+
+		// Hard reset of race processing flag when status becomes RACING
+		if (raceStatus === 'RACING') {
+			console.log(
+				'🏎️ GameCanvas: Hard reset of raceFinishedProcessingRef to false'
+			);
+			raceFinishedProcessingRef.current = false;
+		}
+	}, [phase, raceStatus]);
 
 	// Music Phase Switching
 	useEffect(() => {
@@ -1166,6 +1198,11 @@ const GameCanvas: React.FC = () => {
 							p.finished &&
 							(!o.finished || p.finishTime < o.finishTime)
 						) {
+							console.log(
+								'🏎️ GameCanvas: Calling processRaceFinish (WIN)',
+								p.finishTime,
+								o.finishTime
+							);
 							processRaceFinish(
 								p,
 								o,
@@ -1232,7 +1269,7 @@ const GameCanvas: React.FC = () => {
 
 		animId = requestAnimationFrame(render);
 		return () => cancelAnimationFrame(animId);
-	}, [phase, raceStatus, missions, garage]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [phase, raceStatus, missions, garage, processRaceFinish]); // eslint-disable-line react-hooks/exhaustive-deps
 	const onManualTuningChange = useCallback(
 		(tuningUpdates: Partial<TuningState>) => {
 			setPlayerTuning((prev) => ({ ...prev, ...tuningUpdates }));

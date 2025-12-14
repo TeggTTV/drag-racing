@@ -101,6 +101,10 @@ export interface GameSettings {
 	realisticTires: boolean;
 	engineDamage: boolean;
 	shiftLightRPM: number;
+	skills?: {
+		points: number;
+		unlocked: string[];
+	};
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);

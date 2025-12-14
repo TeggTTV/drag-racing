@@ -31,6 +31,8 @@ export interface User {
 	level?: number;
 	partyInvites?: string[];
 	friendRequestsReceived?: string[];
+	settings?: any; // generic json for now, or specific type
+	xp?: number;
 }
 
 interface AuthContextType {

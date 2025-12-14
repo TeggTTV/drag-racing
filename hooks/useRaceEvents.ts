@@ -8,6 +8,7 @@ import {
 } from '../types';
 import { processMoneyTransaction } from '../utils/transactions';
 import { calculateNextLevelXp } from '../utils/progression';
+import { SKILL_TREE } from '../constants';
 
 export const useRaceEvents = (
 	inventory: InventoryItem[],
@@ -36,8 +37,42 @@ export const useRaceEvents = (
 	audioRef: React.MutableRefObject<any>,
 	opponentAudioRef: React.MutableRefObject<any>,
 	raceFinishedProcessingRef: React.MutableRefObject<boolean>,
-	currentGhostRecording: React.MutableRefObject<any[]>
+	currentGhostRecording: React.MutableRefObject<any[]>,
+	settings: any // GameSettings
 ) => {
+	// Helper to calculate active bonuses
+	// Helper to calculate active bonuses
+	const getSkillBonus = useCallback(
+		(stat: string) => {
+			// console.log(`DEBUG SKILL BONUS: Checking ${stat}`);
+			if (
+				!settings ||
+				!settings.skills ||
+				!Array.isArray(settings.skills.unlocked)
+			) {
+				return 1;
+			}
+			let multiplier = 1;
+			try {
+				settings.skills.unlocked.forEach((id: string) => {
+					const node = SKILL_TREE.find((n) => n.id === id);
+					if (node && node.stats) {
+						// @ts-ignore
+						const val = node.stats[stat];
+						if (typeof val === 'number' && !isNaN(val)) {
+							multiplier *= val;
+						}
+					}
+				});
+			} catch (e) {
+				console.error('Error calculating skill bonus:', e);
+				return 1;
+			}
+			return isNaN(multiplier) ? 1 : multiplier;
+		},
+		[settings]
+	);
+
 	const processRaceFinish = useCallback(
 		(
 			p: CarState,
@@ -51,186 +86,196 @@ export const useRaceEvents = (
 				p.finished &&
 				(!o.finished || playerFinishTime < opponentFinishTime)
 			) {
-				if (raceFinishedProcessingRef.current) return;
 				raceFinishedProcessingRef.current = true;
-
-				// --- WEAR LOGIC (0-100 Scale) ---
-				const calculatedWear: Record<string, number> = {};
-				const wearBase = 0.5; // 0.5% min
-				const wearVariance = 1.0; // 1.0% variance
-				inventory.forEach((item) => {
-					if (item.equipped) {
-						const wear = wearBase + Math.random() * wearVariance;
-						calculatedWear[item.instanceId] = wear;
-					}
-				});
-				setInventory((prev) =>
-					prev.map((item) => {
-						if (calculatedWear[item.instanceId]) {
-							const current =
-								item.condition !== undefined
-									? item.condition
-									: 100;
-							return {
-								...item,
-								condition: Math.max(
-									0,
-									current - calculatedWear[item.instanceId]
-								),
-							};
+				try {
+					setRaceResult('WIN');
+					setRaceStatus('FINISHED');
+					// --- WEAR LOGIC (0-100 Scale) ---
+					const calculatedWear: Record<string, number> = {};
+					const wearBase = 0.5; // 0.5% min
+					const wearVariance = 1.0; // 1.0% variance
+					// Safety check for inventory
+					(inventory || []).forEach((item) => {
+						if (item && item.equipped) {
+							const wear =
+								wearBase + Math.random() * wearVariance;
+							calculatedWear[item.instanceId] = wear;
 						}
-						return item;
-					})
-				);
-				setWearResult(calculatedWear);
-				// --------------------------------
+					});
+					setInventory((prev) =>
+						prev.map((item) => {
+							if (calculatedWear[item.instanceId]) {
+								const current =
+									item.condition !== undefined
+										? item.condition
+										: 100;
+								return {
+									...item,
+									condition: Math.max(
+										0,
+										current -
+											calculatedWear[item.instanceId]
+									),
+								};
+							}
+							return item;
+						})
+					);
+					setWearResult(calculatedWear);
+					// --------------------------------
 
-				// --- Mastery XP Logic ---
-				if (garage[currentCarIndex]) {
-					const car = garage[currentCarIndex];
-					let mLevel = car.masteryLevel || 0;
-					let mXP = car.masteryXP || 0;
+					// --- Mastery XP Logic ---
+					if (garage && garage[currentCarIndex]) {
+						const car = garage[currentCarIndex];
+						let mLevel = car.masteryLevel || 0;
+						let mXP = car.masteryXP || 0;
 
-					// Dynamic XP Calculation
-					let xpGain = 100;
+						// Dynamic XP Calculation
+						let xpGain = 100;
+						if (phase === 'ONLINE_RACE') {
+							xpGain = 500;
+						} else if (missionRef.current) {
+							switch (missionRef.current.difficulty) {
+								case 'EASY':
+									xpGain = 100;
+									break;
+								case 'MEDIUM':
+									xpGain = 150;
+									break;
+								case 'HARD':
+									xpGain = 200;
+									break;
+								case 'EXTREME':
+									xpGain = 300;
+									break;
+								case 'IMPOSSIBLE':
+									xpGain = 400;
+									break;
+								case 'BOSS':
+									xpGain = 500;
+									break;
+								case 'UNDERGROUND':
+									xpGain = 300;
+									break;
+								default:
+									xpGain = 100;
+							}
+						}
+
+						// Apply Driver Skills
+						const xpMult = getSkillBonus('xpGainMultiplier');
+						if (xpMult > 1) {
+							xpGain = Math.floor(xpGain * xpMult);
+						}
+
+						// Store for animation
+						setLastRaceMastery({
+							level: mLevel,
+							xp: mXP,
+							gain: xpGain,
+						});
+
+						mXP += xpGain;
+
+						// Level Up Logic
+						let nextLevelThreshold = (mLevel + 1) * 1000;
+						while (mXP >= nextLevelThreshold) {
+							mXP -= nextLevelThreshold;
+							mLevel++;
+							nextLevelThreshold = (mLevel + 1) * 1000;
+							showToast(
+								`Car Mastery Level Up! LVL ${mLevel}`,
+								'UNLOCK'
+							);
+							// audioRef.current.playUISound('levelup');
+						}
+
+						// Update Car
+						const updatedCar = {
+							...car,
+							masteryLevel: mLevel,
+							masteryXP: mXP,
+						};
+
+						// Update Garage
+						setGarage((prev) => {
+							const newGarage = [...prev];
+							newGarage[currentCarIndex] = updatedCar;
+							return newGarage;
+						});
+					}
+					// ------------------------
+
+					// Use the same xpGain calculated above for Player XP if available, else default
+					// If garage[currentCarIndex] was null, xpGain needs to be defined
+					let playerXpGain = 50;
+
+					// Recalculate if we didn't enter the Mastery block (rare) or want to ensure scope
+					let baseXp = 100;
+					// console.log('phase', phase); // Debug check
 					if (phase === 'ONLINE_RACE') {
-						xpGain = 500;
+						baseXp = 500;
 					} else if (missionRef.current) {
 						switch (missionRef.current.difficulty) {
 							case 'EASY':
-								xpGain = 100;
+								baseXp = 100;
 								break;
 							case 'MEDIUM':
-								xpGain = 150;
+								baseXp = 150;
 								break;
 							case 'HARD':
-								xpGain = 200;
+								baseXp = 200;
 								break;
 							case 'EXTREME':
-								xpGain = 300;
+								baseXp = 300;
 								break;
 							case 'IMPOSSIBLE':
-								xpGain = 400;
+								baseXp = 400;
 								break;
 							case 'BOSS':
-								xpGain = 500;
+								baseXp = 500;
 								break;
 							case 'UNDERGROUND':
-								xpGain = 300;
+								baseXp = 300;
 								break;
 							default:
-								xpGain = 100;
+								baseXp = 100;
 						}
 					}
 
-					// Store for animation
-					setLastRaceMastery({
-						level: mLevel,
-						xp: mXP,
-						gain: xpGain,
-					});
+					const xpMult = getSkillBonus('xpGainMultiplier');
+					playerXpGain = Math.floor(
+						baseXp * (xpMult > 0 ? xpMult : 1)
+					);
 
-					mXP += xpGain;
+					console.log(
+						`🏁 XP Debug: Base=${baseXp}, Mult=${xpMult}, Gain=${playerXpGain}, CurrentXP=${xp}`
+					);
 
-					// Level Up Logic
-					let nextLevelThreshold = (mLevel + 1) * 1000;
-					while (mXP >= nextLevelThreshold) {
-						mXP -= nextLevelThreshold;
-						mLevel++;
-						nextLevelThreshold = (mLevel + 1) * 1000;
-						showToast(
-							`Car Mastery Level Up! LVL ${mLevel}`,
-							'UNLOCK'
-						);
-						// audioRef.current.playUISound('levelup');
+					if (isNaN(playerXpGain)) playerXpGain = 50;
+
+					// Store final gain to be used by UI (Hack: piggyback on lastRaceMastery or add new state?
+					// lastRaceMastery.gain holds this val if mastery updated)
+					if (!garage[currentCarIndex]) {
+						setLastRaceMastery({
+							level: 0,
+							xp: 0,
+							gain: playerXpGain,
+						});
 					}
 
-					// Update Car
-					const updatedCar = {
-						...car,
-						masteryLevel: mLevel,
-						masteryXP: mXP,
-					};
+					if (phase === 'ONLINE_RACE') {
+						// Online Payout: Pot = 2 * wager using secure API
+						const onlinePayout = currentWager * 2;
 
-					// Update Garage
-					setGarage((prev) => {
-						const newGarage = [...prev];
-						newGarage[currentCarIndex] = updatedCar;
-						return newGarage;
-					});
-				}
-				// ------------------------
-
-				setRaceResult('WIN');
-				setRaceStatus('FINISHED');
-
-				if (phase === 'ONLINE_RACE') {
-					// Online Payout: Pot = 2 * wager using secure API
-					const onlinePayout = currentWager * 2;
-
-					if (token) {
-						// Use secure transaction API
-						processMoneyTransaction(
-							token,
-							'RACE_WIN',
-							onlinePayout,
-							{
-								raceType: 'ONLINE',
-								wager: currentWager,
-							}
-						)
-							.then((result) => {
-								setMoney(result.newBalance);
-							})
-							.catch((err) => {
-								console.error('Transaction failed:', err);
-								showToast(
-									'Failed to process race payout',
-									'ERROR'
-								);
-								setMoney((prev) => prev + onlinePayout);
-							});
-					} else {
-						setMoney((prev) => prev + onlinePayout);
-					}
-					const newXp = xp + 200;
-					setXp(newXp);
-					saveGame({ xp: newXp }); // Immediate Save
-				} else {
-					const m = missionRef.current;
-					// Calculate Wager Winnings based on difficulty
-					if (m) {
-						const difficultyMultiplier =
-							m.difficulty === 'EASY'
-								? 0.5
-								: m.difficulty === 'MEDIUM'
-								? 1.0
-								: m.difficulty === 'HARD'
-								? 2.0
-								: m.difficulty === 'EXTREME'
-								? 4.0
-								: m.difficulty === 'IMPOSSIBLE'
-								? 4.0
-								: m.difficulty === 'BOSS'
-								? 3.0
-								: 1.0;
-
-						const wagerWinnings = Math.floor(
-							currentWager * difficultyMultiplier
-						);
-						const totalPayout =
-							m.payout + currentWager + wagerWinnings;
-
-						// Use API to update money if user is logged in
 						if (token) {
+							// Use secure transaction API
 							processMoneyTransaction(
 								token,
 								'RACE_WIN',
-								totalPayout,
+								onlinePayout,
 								{
-									raceType: 'MISSION',
-									missionId: m.id,
-									difficulty: m.difficulty,
+									raceType: 'ONLINE',
 									wager: currentWager,
 								}
 							)
@@ -243,85 +288,195 @@ export const useRaceEvents = (
 										'Failed to process race payout',
 										'ERROR'
 									);
-									// Fallback to local update
-									setMoney((prev) => prev + totalPayout);
+									setMoney((prev) => prev + onlinePayout);
 								});
 						} else {
-							// Offline mode: update local state only
-							setMoney((prev) => prev + totalPayout);
+							setMoney((prev) => prev + onlinePayout);
 						}
-						const newXp = xp + 50;
-						setXp(newXp); // Grant XP for offline race win
-						saveGame({ xp: newXp });
 
-						// Reward Car Logic
-						if (m.rewardCar) {
-							setGarage((prev) => {
-								return [...prev, m.rewardCar!];
-							});
+						const finalXp = (xp || 0) + playerXpGain;
+						setXp(finalXp);
+						saveGame({ xp: finalXp }); // Note: closure 'xp' might be stale in immediate save if rapid updates, but usually fine here
+					} else {
+						const m = missionRef.current;
+						// Calculate Wager Winnings based on difficulty
+						if (m) {
+							// ... Money Logic ...
+							const difficultyMultiplier =
+								m.difficulty === 'EASY'
+									? 0.5
+									: m.difficulty === 'MEDIUM'
+									? 1.0
+									: m.difficulty === 'HARD'
+									? 2.0
+									: m.difficulty === 'EXTREME'
+									? 4.0
+									: m.difficulty === 'IMPOSSIBLE'
+									? 4.0
+									: m.difficulty === 'BOSS'
+									? 3.0
+									: 1.0;
 
-							// Check current state for toast (approximation)
-							const alreadyOwned = garage.some(
-								(c) => c.id === m.rewardCar!.id
+							const wagerWinnings = Math.floor(
+								currentWager * difficultyMultiplier
 							);
+							let totalPayout =
+								m.payout + currentWager + wagerWinnings;
 
-							if (!alreadyOwned) {
-								showToast(
-									`YOU WON A NEW CAR: ${m.rewardCar!.name}!`,
-									'UNLOCK'
+							// Apply Tycoon Skills
+							const moneyMult = getSkillBonus(
+								'racePayoutMultiplier'
+							);
+							if (moneyMult > 1) {
+								totalPayout = Math.floor(
+									totalPayout * moneyMult
 								);
+							}
+
+							// Use API to update money if user is logged in
+							if (token) {
+								processMoneyTransaction(
+									token,
+									'RACE_WIN',
+									totalPayout,
+									{
+										raceType: 'MISSION',
+										missionId: m.id,
+										difficulty: m.difficulty,
+										wager: currentWager,
+									}
+								)
+									.then((result) => {
+										setMoney(result.newBalance);
+									})
+									.catch((err) => {
+										console.error(
+											'Transaction failed:',
+											err
+										);
+										showToast(
+											'Failed to process race payout',
+											'ERROR'
+										);
+										// Fallback to local update
+										setMoney((prev) => prev + totalPayout);
+									});
 							} else {
-								showToast(
-									`You already own the ${m.rewardCar!.name}.`,
-									'INFO'
-								);
+								// Offline mode: update local state only
+								setMoney((prev) => prev + totalPayout);
 							}
-						}
 
-						// Underground Progression
-						if (m.difficulty === 'UNDERGROUND') {
-							setUndergroundLevel((prev) => prev + 1);
-							showToast('UNDERGROUND RANK INCREASED!', 'UNLOCK');
-						}
+							// Use the unified playerXpGain
+							const finalXp = (xp || 0) + playerXpGain;
+							console.log(
+								`🏁 Saving XP: ${xp} + ${playerXpGain} = ${finalXp}`
+							);
+							setXp(finalXp);
+							saveGame({ xp: finalXp });
 
-						// Rival Progression
-						if (
-							typeof m.id === 'string' &&
-							m.id.startsWith('rival_')
-						) {
-							const rivalId = m.id.replace('rival_', '');
-							if (!defeatedRivals.includes(rivalId)) {
-								setDefeatedRivals((prev) => [...prev, rivalId]);
+							// Reward Car Logic
+							if (m.rewardCar) {
+								setGarage((prev) => {
+									return [...prev, m.rewardCar!];
+								});
+
+								// Check current state for toast (approximation)
+								const alreadyOwned = garage.some(
+									(c) => c.id === m.rewardCar!.id
+								);
+
+								if (!alreadyOwned) {
+									showToast(
+										`YOU WON A NEW CAR: ${
+											m.rewardCar!.name
+										}!`,
+										'UNLOCK'
+									);
+								} else {
+									showToast(
+										`You already own the ${
+											m.rewardCar!.name
+										}.`,
+										'INFO'
+									);
+								}
+							}
+
+							// Underground Progression
+							if (m.difficulty === 'UNDERGROUND') {
+								setUndergroundLevel((prev) => prev + 1);
 								showToast(
-									`RIVAL DEFEATED: ${m.opponent.name}`,
+									'UNDERGROUND RANK INCREASED!',
 									'UNLOCK'
 								);
 							}
-						}
 
-						// Update Best Time
-						const currentMissions = [...missions];
-						const missionIndex = currentMissions.findIndex(
-							(mis) => mis.id === m.id
-						);
-						if (missionIndex !== -1) {
-							const oldBest =
-								currentMissions[missionIndex].bestTime;
-							if (!oldBest || playerFinishTime < oldBest) {
-								currentMissions[missionIndex].bestTime =
-									playerFinishTime;
-								// Save Ghost Data
-								currentMissions[missionIndex].bestGhost = [
-									...currentGhostRecording.current,
-								];
-								setMissions(currentMissions);
+							// Rival Progression
+							if (
+								typeof m.id === 'string' &&
+								m.id.startsWith('rival_')
+							) {
+								const rivalId = m.id.replace('rival_', '');
+								if (!defeatedRivals.includes(rivalId)) {
+									setDefeatedRivals((prev) => [
+										...prev,
+										rivalId,
+									]);
+									showToast(
+										`RIVAL DEFEATED: ${m.opponent.name}`,
+										'UNLOCK'
+									);
+								}
+							}
+
+							// Update Best Time
+							const currentMissions = [...missions];
+							const missionIndex = currentMissions.findIndex(
+								(mis) => mis.id === m.id
+							);
+							if (missionIndex !== -1) {
+								const oldBest =
+									currentMissions[missionIndex].bestTime;
+								if (!oldBest || playerFinishTime < oldBest) {
+									currentMissions[missionIndex].bestTime =
+										playerFinishTime;
+									// Save Ghost Data
+									currentMissions[missionIndex].bestGhost = [
+										...currentGhostRecording.current,
+									];
+									setMissions(currentMissions);
+								}
 							}
 						}
 					}
-				}
 
-				audioRef.current.stop();
-				opponentAudioRef.current.stop();
+					// Audio Cleanup
+					try {
+						if (
+							audioRef.current &&
+							typeof audioRef.current.stop === 'function'
+						) {
+							audioRef.current.stop();
+						}
+						if (
+							opponentAudioRef.current &&
+							typeof opponentAudioRef.current.stop === 'function'
+						) {
+							opponentAudioRef.current.stop();
+						}
+					} catch (audioErr) {
+						console.warn('Audio stop error:', audioErr);
+					}
+				} catch (error) {
+					console.error(
+						'CRITICAL ERROR IN PROCESS RACE FINISH:',
+						error
+					);
+					showToast('Race Finish Error - check console', 'ERROR');
+					// Force finish to stop loop
+					setRaceResult('WIN');
+					setRaceStatus('FINISHED');
+				}
 			} else if (
 				o.finished &&
 				(!p.finished || opponentFinishTime < playerFinishTime)
@@ -385,8 +540,8 @@ export const useRaceEvents = (
 			setMissions,
 			audioRef,
 			opponentAudioRef,
-			raceFinishedProcessingRef,
 			currentGhostRecording,
+			getSkillBonus,
 		]
 	);
 

@@ -51,6 +51,8 @@ export const RaceResults: React.FC<RaceResultsProps> = ({
 }) => {
 	const [showConditionTab, setShowConditionTab] = useState(false);
 
+	// console.log('🏁 RaceResults Render:', { raceResult, phase });
+
 	if (!raceResult) return null;
 
 	return (
@@ -64,7 +66,10 @@ export const RaceResults: React.FC<RaceResultsProps> = ({
 						money={money}
 						initialXp={
 							raceResult === 'WIN'
-								? xp - (missionRef.current?.xpReward || 100)
+								? xp -
+								  (lastRaceMastery?.gain ||
+										missionRef.current?.xpReward ||
+										100)
 								: xp
 						}
 						initialMoney={
