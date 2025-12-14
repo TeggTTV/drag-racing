@@ -304,6 +304,13 @@ export const useGamePersistence = (
 
 		const loadFromServer = async () => {
 			if (!user || !token) return;
+
+			// prevent overwriting optimistic updates if we just saved
+			if (Date.now() - lastSyncRef.current < 5000) {
+				// console.log('Skipping server load due to recent save');
+				return;
+			}
+
 			try {
 				const res = await fetch(
 					getFullUrl('/api/users/:id').replace(':id', user.id) +
@@ -381,12 +388,12 @@ export const useGamePersistence = (
 	useEffect(() => {
 		if (!loaded || user) return;
 		localStorage.setItem('shift_drift_money', money.toString());
-	}, [money, loaded, user]);
+	}, [money, loaded]);
 
 	useEffect(() => {
 		if (!loaded || user) return;
 		localStorage.setItem('shift_drift_missions', JSON.stringify(missions));
-	}, [missions, loaded, user]);
+	}, [missions, loaded]);
 
 	useEffect(() => {
 		if (!loaded || user) return;
@@ -394,7 +401,7 @@ export const useGamePersistence = (
 			'shift_drift_dynoHistory',
 			JSON.stringify(dynoHistory)
 		);
-	}, [dynoHistory, loaded, user]);
+	}, [dynoHistory, loaded]);
 
 	useEffect(() => {
 		if (!loaded || user) return;
@@ -402,13 +409,13 @@ export const useGamePersistence = (
 			'shift_drift_previousDynoHistory',
 			JSON.stringify(previousDynoHistory)
 		);
-	}, [previousDynoHistory, loaded, user]);
+	}, [previousDynoHistory, loaded]);
 
 	// Save Garage & Current Index
 	useEffect(() => {
 		if (!loaded || user) return;
 		localStorage.setItem('shift_drift_garage', JSON.stringify(garage));
-	}, [garage, loaded, user]);
+	}, [garage, loaded]);
 
 	useEffect(() => {
 		if (!loaded || user) return;
@@ -416,7 +423,7 @@ export const useGamePersistence = (
 			'shift_drift_currentCarIndex',
 			currentCarIndex.toString()
 		);
-	}, [currentCarIndex, loaded, user]);
+	}, [currentCarIndex, loaded]);
 
 	useEffect(() => {
 		if (!loaded || user) return;
@@ -424,7 +431,7 @@ export const useGamePersistence = (
 			'shift_drift_undergroundLevel',
 			undergroundLevel.toString()
 		);
-	}, [undergroundLevel, loaded, user]);
+	}, [undergroundLevel, loaded]);
 
 	useEffect(() => {
 		if (!loaded || user) return;
@@ -432,17 +439,17 @@ export const useGamePersistence = (
 			'shift_drift_dailyChallenges',
 			JSON.stringify(dailyChallenges)
 		);
-	}, [dailyChallenges, loaded, user]);
+	}, [dailyChallenges, loaded]);
 
 	useEffect(() => {
 		if (!loaded || user) return;
 		localStorage.setItem('shift_drift_xp', xp.toString());
-	}, [xp, loaded, user]);
+	}, [xp, loaded]);
 
 	useEffect(() => {
 		if (!loaded || user) return;
 		localStorage.setItem('shift_drift_level', level.toString());
-	}, [level, loaded, user]);
+	}, [level, loaded]);
 
 	useEffect(() => {
 		if (!loaded || user) return;
@@ -450,12 +457,12 @@ export const useGamePersistence = (
 			'shift_drift_inventory',
 			JSON.stringify(inventory)
 		);
-	}, [inventory, loaded, user]);
+	}, [inventory, loaded]);
 
 	useEffect(() => {
 		if (!loaded || user) return;
 		localStorage.setItem('shift_drift_settings', JSON.stringify(settings));
-	}, [settings, loaded, user]);
+	}, [settings, loaded]);
 
 	useEffect(() => {
 		if (!loaded || user) return;
@@ -463,7 +470,7 @@ export const useGamePersistence = (
 			'shift_drift_loginStreak',
 			JSON.stringify(loginStreak)
 		);
-	}, [loginStreak, loaded, user]);
+	}, [loginStreak, loaded]);
 
 	// --- Server Sync Logic ---
 	// SECURITY NOTE: Money is NOT synced automatically from localStorage to prevent manipulation
@@ -504,11 +511,6 @@ export const useGamePersistence = (
 
 						if (timeDiff > 5000) {
 							setMoney(data.money);
-							// Also update localStorage to reflect server value
-							localStorage.setItem(
-								'shift_drift_money',
-								data.money.toString()
-							);
 						}
 					}
 				}
@@ -570,6 +572,7 @@ export const useGamePersistence = (
 			};
 
 			try {
+				lastSyncRef.current = Date.now();
 				await fetch(
 					getFullUrl('/api/users/:id').replace(':id', user.id),
 					{
@@ -581,7 +584,6 @@ export const useGamePersistence = (
 						body: JSON.stringify(body),
 					}
 				);
-				lastSyncRef.current = Date.now();
 				// console.log('Game saved immediately');
 			} catch (e) {
 				console.error('Failed to save game', e);

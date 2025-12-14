@@ -1372,9 +1372,9 @@ const GameCanvas: React.FC = () => {
 
 		const newTuning = CarBuilder.calculateTuning(
 			baseTuning,
-			[], // safeOwnedMods (Legacy Disabled)
-			[], // safeDisabledMods (Legacy Disabled)
-			{}, // safeModSettings (Legacy Disabled)
+			safeOwnedMods,
+			safeDisabledMods,
+			safeModSettings,
 			inventory.filter((i) => i.equipped)
 		);
 
