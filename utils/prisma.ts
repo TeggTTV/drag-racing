@@ -1,8 +1,8 @@
 import { PrismaClient } from '@prisma/client';
 
 export const isLocal = process.env.NEXT_PUBLIC_VERCEL_ENV === 'local';
-export const domain = isLocal ? 'localhost:3000' : 'localhost:3000';
-export const protocol = isLocal ? 'http://' : 'http://';
+export const domain = isLocal ? 'localhost:3000' : 'drag.vercel.app';
+export const protocol = isLocal ? 'http://' : 'https://';
 
 export type ApiRoute =
 	| '/api'
