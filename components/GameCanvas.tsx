@@ -93,6 +93,10 @@ const GameCanvas: React.FC = () => {
 	// Game Settings
 	const [settings, setSettings] = useState<GameSettings>({
 		particles: true,
+		manualClutch: false,
+		realisticTires: false,
+		engineDamage: false,
+		shiftLightRPM: 0,
 	});
 
 	// Weather State
@@ -204,7 +208,9 @@ const GameCanvas: React.FC = () => {
 		setLevel,
 		inventory,
 		setInventory,
-		phase
+		phase,
+		settings,
+		setSettings
 	);
 
 	const setMoney = useCallback(
@@ -821,28 +827,63 @@ const GameCanvas: React.FC = () => {
 	);
 
 	const handleMerge = useCallback(
-		(item1: InventoryItem, item2: InventoryItem) => {
-			const newItem = ItemMerge.mergeItems(item1, item2);
-			if (newItem) {
-				setInventory((prev) => {
-					// Remove old items
-					const filtered = prev.filter(
-						(i) =>
-							i.instanceId !== item1.instanceId &&
-							i.instanceId !== item2.instanceId
+		async (item1: InventoryItem, item2: InventoryItem) => {
+			if (!token) {
+				// Offline Fallback
+				const newItem = ItemMerge.mergeItems(item1, item2);
+				if (newItem) {
+					setInventory((prev) => {
+						const filtered = prev.filter(
+							(i) =>
+								i.instanceId !== item1.instanceId &&
+								i.instanceId !== item2.instanceId
+						);
+						const newInventory = [...filtered, newItem];
+						saveGame({ inventory: newInventory });
+						return newInventory;
+					});
+					showToast(
+						`Merged for ${newItem.rarity} ${newItem.name}!`,
+						'SUCCESS'
 					);
-					// Add new item
-					return [...filtered, newItem];
+				} else {
+					showToast('Failed to merge items.', 'ERROR');
+				}
+				return;
+			}
+
+			// Server Action
+			try {
+				const res = await fetch(getFullUrl('/api/actions/inventory'), {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						Authorization: `Bearer ${token}`,
+					},
+					body: JSON.stringify({
+						action: 'MERGE',
+						item1Id: item1.instanceId,
+						item2Id: item2.instanceId,
+					}),
 				});
-				showToast(
-					`Merged for ${newItem.rarity} ${newItem.name}!`,
-					'SUCCESS'
-				);
-			} else {
-				showToast('Failed to merge items.', 'ERROR');
+
+				if (res.ok) {
+					const data = await res.json();
+					setInventory(data.inventory);
+					showToast(
+						`Merged for ${data.newItem.rarity} ${data.newItem.name}!`,
+						'SUCCESS'
+					);
+				} else {
+					const err = await res.json();
+					showToast(err.message || 'Merge failed', 'ERROR');
+				}
+			} catch (e) {
+				console.error('Merge error:', e);
+				showToast('Merge failed', 'ERROR');
 			}
 		},
-		[showToast]
+		[token, showToast, saveGame]
 	);
 
 	// Inventory State moved up
@@ -973,6 +1014,8 @@ const GameCanvas: React.FC = () => {
 		shiftUp: false,
 		shiftDown: false,
 		clutch: false,
+		brake: false,
+		purge: false,
 	});
 
 	// Logic Refs
@@ -1030,6 +1073,15 @@ const GameCanvas: React.FC = () => {
 				case CONTROLS.SHIFT_DOWN:
 					inputsRef.current.shiftDown = true;
 					break;
+				case CONTROLS.CLUTCH:
+					inputsRef.current.clutch = true;
+					break;
+				case CONTROLS.BRAKE:
+					inputsRef.current.brake = true;
+					break;
+				case CONTROLS.PURGE:
+					inputsRef.current.purge = true;
+					break;
 			}
 		};
 
@@ -1046,6 +1098,15 @@ const GameCanvas: React.FC = () => {
 					break;
 				case CONTROLS.SHIFT_DOWN:
 					inputsRef.current.shiftDown = false;
+					break;
+				case CONTROLS.CLUTCH:
+					inputsRef.current.clutch = false;
+					break;
+				case CONTROLS.BRAKE:
+					inputsRef.current.brake = false;
+					break;
+				case CONTROLS.PURGE:
+					inputsRef.current.purge = false;
 					break;
 			}
 		};
@@ -1445,6 +1506,8 @@ const GameCanvas: React.FC = () => {
 			shiftUp: false,
 			shiftDown: false,
 			clutch: false,
+			brake: false,
+			purge: false,
 		};
 		lastGearRef.current = 0;
 		shiftDebounce.current = false;
@@ -1574,7 +1637,8 @@ const GameCanvas: React.FC = () => {
 							raceStartTimeRef.current,
 							currentGhostRecording,
 							undefined,
-							weather.type === 'RAIN' ? 0.6 : 1.0
+							weather.type === 'RAIN' ? 0.6 : 1.0,
+							settings
 						);
 
 						// Reset shift inputs after processing
@@ -1603,6 +1667,8 @@ const GameCanvas: React.FC = () => {
 								shiftUp: false,
 								shiftDown: false,
 								clutch: false,
+								brake: false,
+								purge: false,
 							},
 							dt,
 							true,
@@ -2108,6 +2174,27 @@ const GameCanvas: React.FC = () => {
 					);
 				}
 
+				// Nitrous Purge Visuals
+				if (inputsRef.current.purge) {
+					// Left and Right Vents
+					[-0.3, 0.3].forEach((side) => {
+						particleSystemRef.current.emit(
+							trackWidth / 4 / PPM + side, // Offset from center
+							p.y + 1.2, // Near windshield/cowl
+							3,
+							'SMOKE',
+							{
+								size: 4,
+								life: 0.4,
+								speed: 6,
+								angle: side > 0 ? Math.PI * 0.2 : Math.PI * 0.8, // Shoot up and out
+								spread: 0.1,
+								color: '#ffffff',
+							}
+						);
+					});
+				}
+
 				// Engine Smoke (Damage)
 				const currentCar = garage[currentCarIndex];
 				if (
@@ -2253,6 +2340,7 @@ const GameCanvas: React.FC = () => {
 							opponentState={uiState.opponent}
 							raceDistance={missionRef.current.distance}
 							missedGear={missedGearAlert}
+							settings={settings}
 						/>
 						{/* Countdown Overlay */}
 						{countdownNum !== '' && (

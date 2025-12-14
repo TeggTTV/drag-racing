@@ -13,6 +13,8 @@ export const useGameInput = (
 		shiftUp: false,
 		shiftDown: false,
 		clutch: false,
+		brake: false,
+		purge: false,
 	});
 
 	const keysPressed = useRef<Set<string>>(new Set());

@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
 import { CarState, TuningState } from '../types';
+import { GameSettings } from '../contexts/GameContext';
 
 interface DashboardProps {
 	carState: CarState;
@@ -7,6 +7,8 @@ interface DashboardProps {
 	opponentState?: CarState;
 	raceDistance: number;
 	missedGear?: boolean;
+	settings?: GameSettings;
+	inputs?: any; // InputState
 }
 
 const Dashboard: React.FC<DashboardProps> = ({
@@ -15,6 +17,8 @@ const Dashboard: React.FC<DashboardProps> = ({
 	opponentState,
 	raceDistance,
 	missedGear,
+	settings,
+	inputs,
 }) => {
 	const speedKmh = Math.floor(carState.velocity * 3.6);
 	const rpm = Math.round(carState.rpm);
@@ -25,7 +29,13 @@ const Dashboard: React.FC<DashboardProps> = ({
 	const rpmPercent = Math.min((carState.rpm / redline) * 100, 100);
 
 	// Shift Light Logic
-	const isShiftPoint = rpmPercent > 90;
+	let isShiftPoint = false;
+	if (settings?.shiftLightRPM && settings.shiftLightRPM > 0) {
+		isShiftPoint = carState.rpm >= settings.shiftLightRPM;
+	} else {
+		isShiftPoint = rpmPercent > 90;
+	}
+
 	const isRedline = rpmPercent >= 98;
 
 	// Progress Bar
@@ -83,7 +93,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 					></div>
 
 					{/* Gear Display */}
-					<div className="text-center relative z-10">
+					<div className="text-center relative z-10 flex flex-col items-center">
 						<div className="text-[10px] text-gray-500 font-mono mb-0.5">
 							GEAR
 						</div>
@@ -96,6 +106,27 @@ const Dashboard: React.FC<DashboardProps> = ({
 						>
 							{gearLabel}
 						</div>
+
+						{/* Clutch Indicator (if manual) */}
+						{settings?.manualClutch && (
+							<div className="w-16 h-1 bg-gray-800 mt-1 rounded overflow-hidden">
+								<div
+									className={`h-full bg-blue-500 transition-all duration-75`}
+									style={{
+										width: inputs?.clutch ? '100%' : '0%',
+									}}
+								></div>
+								<div
+									className={`text-[8px] text-center mt-0.5 ${
+										inputs?.clutch
+											? 'text-blue-400 font-bold'
+											: 'text-gray-600'
+									}`}
+								>
+									CLUTCH
+								</div>
+							</div>
+						)}
 					</div>
 
 					{/* Center Tacho */}
@@ -125,6 +156,59 @@ const Dashboard: React.FC<DashboardProps> = ({
 								style={{ width: `${rpmPercent}%` }}
 							></div>
 						</div>
+
+						{/* Tire Temp & Brake (Right Side) */}
+						{settings?.realisticTires && (
+							<div className="absolute -right-16 top-0 bottom-0 w-12 flex flex-col justify-center gap-2">
+								{/* Tire Temp */}
+								<div className="flex flex-col items-center">
+									<div className="text-[8px] text-gray-500 mb-0.5">
+										TIRE
+									</div>
+									<div className="w-2 h-16 bg-gray-800 rounded-full overflow-hidden relative border border-gray-700">
+										<div
+											className={`absolute bottom-0 left-0 right-0 transition-all duration-300 ${
+												(carState.tireTemp || 20) > 90
+													? 'bg-red-500'
+													: (carState.tireTemp ||
+															20) < 40
+													? 'bg-blue-500'
+													: 'bg-green-500'
+											}`}
+											style={{
+												height: `${Math.min(
+													100,
+													carState.tireTemp || 20
+												)}%`,
+											}}
+										></div>
+									</div>
+									<div className="text-[8px] text-gray-400 mt-0.5">
+										{(carState.tireTemp || 20).toFixed(0)}°
+									</div>
+								</div>
+
+								{/* Brake Indicator */}
+								<div className="flex flex-col items-center mt-2">
+									<div
+										className={`text-[8px] font-bold mb-0.5 ${
+											inputs?.brake
+												? 'text-red-500'
+												: 'text-gray-700'
+										}`}
+									>
+										BRAKE
+									</div>
+									<div
+										className={`w-3 h-3 rounded-full border border-gray-700 ${
+											inputs?.brake
+												? 'bg-red-600 shadow-[0_0_8px_rgba(220,38,38,1)]'
+												: 'bg-gray-900'
+										}`}
+									></div>
+								</div>
+							</div>
+						)}
 						<div className="flex justify-between text-[9px] text-gray-600 mt-0.5 font-mono">
 							<span>0</span>
 							<span>{Math.round(redline / 2)}</span>

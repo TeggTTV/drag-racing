@@ -126,25 +126,17 @@ export const GameMenu = () => {
 		setUserInventory((prev) => [...prev, item]);
 	};
 
-	const handleEquipItem = (item: InventoryItem) => {
+	const handleEquipItem = async (item: InventoryItem) => {
 		// Conflict Check Logic
 		const isConflict = (existing: InventoryItem, newOne: InventoryItem) => {
 			if (newOne.category && existing.category) {
 				return newOne.category === existing.category;
 			}
-			// If one has category and other doesn't, assume NO conflict to allow mixing legacy/new specific parts?
-			// OR if new one has category, only conflict if existing has matching category.
 			if (newOne.category) {
 				return newOne.category === existing.category;
 			}
-			// Fallback: If new one has NO category, it's broad. Use Type.
 			return newOne.type === existing.type;
 		};
-
-		// Find currently equipped item that conflicts
-		const currentEquipped = userInventory.find(
-			(i) => i.equipped && isConflict(i, item)
-		);
 
 		// Helper to adjust stats
 		const adjustStats = (
@@ -164,33 +156,66 @@ export const GameMenu = () => {
 			return next;
 		};
 
+		// Optimistic Update (for immediate UI feedback)
+		const currentEquipped = userInventory.find(
+			(i) => i.equipped && isConflict(i, item)
+		);
+
 		setPlayerTuning((prev) => {
 			let next = { ...prev };
-			// 1. Remove stats of currently equipped item (if any)
 			if (currentEquipped) {
 				next = adjustStats(next, currentEquipped.stats, -1);
 			}
-			// 2. Add stats of new item
 			next = adjustStats(next, item.stats, 1);
 			return next;
 		});
 
-		// 3. Update Inventory Flags
-		setUserInventory((prev) =>
-			prev.map((i) => {
-				// Set target to equipped
-				if (i.instanceId === item.instanceId) {
-					return { ...i, equipped: true };
-				}
-				// Unequip others of conflicting type/category
-				if (i.equipped && isConflict(i, item)) {
-					return { ...i, equipped: false };
-				}
-				return i;
-			})
-		);
+		if (!token) {
+			// Offline Fallback
+			setUserInventory((prev) => {
+				const newInventory = prev.map((i) => {
+					if (i.instanceId === item.instanceId) {
+						return { ...i, equipped: true };
+					}
+					if (i.equipped && isConflict(i, item)) {
+						return { ...i, equipped: false };
+					}
+					return i;
+				});
+				saveGame({ inventory: newInventory });
+				return newInventory;
+			});
+			showToast(`Equipped ${item.name}`, 'SUCCESS');
+			return;
+		}
 
-		showToast(`Equipped ${item.name}`, 'SUCCESS');
+		// Server Action
+		try {
+			const res = await fetch(getFullUrl('/api/actions/inventory'), {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({
+					action: 'EQUIP',
+					itemId: item.instanceId,
+				}),
+			});
+
+			if (res.ok) {
+				const data = await res.json();
+				setUserInventory(data.inventory);
+				showToast(`Equipped ${item.name}`, 'SUCCESS');
+			} else {
+				const err = await res.json();
+				showToast(err.message || 'Equip failed', 'ERROR');
+				// Revert optimistic update? (Complex, skipping for now as rare)
+			}
+		} catch (e) {
+			console.error('Equip error:', e);
+			showToast('Equip failed', 'ERROR');
+		}
 	};
 
 	// --- Auction Logic ---
@@ -371,48 +396,114 @@ export const GameMenu = () => {
 		showToast(`Destroyed ${item.name}`, 'ERROR'); // Red toast
 	};
 
-	const handleRepairItem = (item: InventoryItem, cost: number) => {
+	const handleRepairItem = async (item: InventoryItem, cost: number) => {
 		if (money < cost) {
 			showToast('Not enough money!', 'ERROR');
 			return;
 		}
-		setMoney((m) => m - cost);
 
-		setUserInventory((prev) =>
-			prev.map((i) =>
-				i.instanceId === item.instanceId ? { ...i, condition: 100 } : i
-			)
-		);
+		if (token) {
+			try {
+				const result = await processMoneyTransaction(
+					token,
+					'REPAIR_COST',
+					-cost,
+					{ itemId: item.instanceId }
+				);
+				setMoney(result.newBalance);
 
-		// Track Stat
-		fetch('/api/stats', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ key: 'item_repairs', amount: 1 }),
-		}).catch(() => {}); // Fire-and-forget
+				// Update Inventory
+				setUserInventory((prev) => {
+					const newInventory = prev.map((i) =>
+						i.instanceId === item.instanceId
+							? { ...i, condition: 100 }
+							: i
+					);
+					saveGame({ inventory: newInventory });
+					return newInventory;
+				});
 
-		showToast(`Repaired ${item.name} for $${cost}`, 'SUCCESS');
+				// Track Stat
+				fetch('/api/stats', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ key: 'item_repairs', amount: 1 }),
+				}).catch(() => {});
+
+				showToast(`Repaired ${item.name} for $${cost}`, 'SUCCESS');
+			} catch (e) {
+				console.error('Repair failed:', e);
+				showToast('Transaction failed', 'ERROR');
+			}
+		} else {
+			// Offline
+			setMoney((m) => m - cost);
+			setUserInventory((prev) => {
+				const newInventory = prev.map((i) =>
+					i.instanceId === item.instanceId
+						? { ...i, condition: 100 }
+						: i
+				);
+				saveGame({ money: money - cost, inventory: newInventory });
+				return newInventory;
+			});
+			showToast(`Repaired ${item.name} for $${cost}`, 'SUCCESS');
+		}
 	};
 
-	const handleRepairAll = (items: InventoryItem[], cost: number) => {
+	const handleRepairAll = async (items: InventoryItem[], cost: number) => {
 		if (money < cost) {
 			showToast('Not enough money!', 'ERROR');
 			return;
 		}
-		setMoney((m) => m - cost);
 
-		// Get IDs of items to repair for efficient lookup
-		const itemIds = new Set(items.map((i) => i.instanceId));
+		if (token) {
+			try {
+				const result = await processMoneyTransaction(
+					token,
+					'REPAIR_COST',
+					-cost,
+					{ count: items.length }
+				);
+				setMoney(result.newBalance);
 
-		setUserInventory((prev) =>
-			prev.map((i) =>
-				itemIds.has(i.instanceId) ? { ...i, condition: 100 } : i
-			)
-		);
-		showToast(
-			`Repaired ${items.length} items for $${cost.toLocaleString()}`,
-			'SUCCESS'
-		);
+				// Get IDs of items to repair for efficient lookup
+				const itemIds = new Set(items.map((i) => i.instanceId));
+
+				setUserInventory((prev) => {
+					const newInventory = prev.map((i) =>
+						itemIds.has(i.instanceId) ? { ...i, condition: 100 } : i
+					);
+					saveGame({ inventory: newInventory });
+					return newInventory;
+				});
+
+				showToast(
+					`Repaired ${
+						items.length
+					} items for $${cost.toLocaleString()}`,
+					'SUCCESS'
+				);
+			} catch (e) {
+				console.error('Repair All failed:', e);
+				showToast('Transaction failed', 'ERROR');
+			}
+		} else {
+			// Offline
+			setMoney((m) => m - cost);
+			const itemIds = new Set(items.map((i) => i.instanceId));
+			setUserInventory((prev) => {
+				const newInventory = prev.map((i) =>
+					itemIds.has(i.instanceId) ? { ...i, condition: 100 } : i
+				);
+				saveGame({ money: money - cost, inventory: newInventory });
+				return newInventory;
+			});
+			showToast(
+				`Repaired ${items.length} items for $${cost.toLocaleString()}`,
+				'SUCCESS'
+			);
+		}
 	};
 
 	const handleMergeAll = () => {

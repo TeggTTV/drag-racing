@@ -30,7 +30,8 @@ export type ApiRoute =
 	| '/api/auction?action=buy'
 	| '/api/auction?action=claim'
 	| '/api/transactions/money'
-	| '/api/shop/crates';
+	| '/api/shop/crates'
+	| '/api/actions/inventory';
 
 export const getFullUrl = (route: ApiRoute, query?: string): string => {
 	const fullUrl = `${protocol}${domain}${route}${query ? `?${query}` : ''}`;

@@ -159,6 +159,123 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 						</div>
 					</div>
 
+					{/* Gameplay Section */}
+					<div className="border-b border-gray-700 pb-6">
+						<h3 className="text-sm text-indigo-400 mb-4 pixel-text">
+							🎮 GAMEPLAY
+						</h3>
+
+						{/* Manual Clutch */}
+						<div className="flex items-center justify-between mb-3">
+							<div className="flex flex-col">
+								<label className="text-sm text-gray-300">
+									Manual Clutch
+								</label>
+								<span className="text-[10px] text-gray-500">
+									Harder difficulty. +20% Payouts.
+								</span>
+							</div>
+							<button
+								onClick={() =>
+									setSettings((prev) => ({
+										...prev,
+										manualClutch: !prev.manualClutch,
+									}))
+								}
+								className={`pixel-btn px-4 py-2 text-xs transition-all ${
+									settings.manualClutch
+										? 'bg-green-900/50 border-green-500 text-green-400'
+										: 'bg-gray-800 border-gray-600 text-gray-400'
+								}`}
+							>
+								{settings.manualClutch ? '✓ ON' : '✕ OFF'}
+							</button>
+						</div>
+
+						{/* Realistic Tires */}
+						<div className="flex items-center justify-between mb-3">
+							<div className="flex flex-col">
+								<label className="text-sm text-gray-300">
+									Realistic Tires
+								</label>
+								<span className="text-[10px] text-gray-500">
+									Tire temp affects grip.
+								</span>
+							</div>
+							<button
+								onClick={() =>
+									setSettings((prev) => ({
+										...prev,
+										realisticTires: !prev.realisticTires,
+									}))
+								}
+								className={`pixel-btn px-4 py-2 text-xs transition-all ${
+									settings.realisticTires
+										? 'bg-green-900/50 border-green-500 text-green-400'
+										: 'bg-gray-800 border-gray-600 text-gray-400'
+								}`}
+							>
+								{settings.realisticTires ? '✓ ON' : '✕ OFF'}
+							</button>
+						</div>
+
+						{/* Engine Damage */}
+						<div className="flex items-center justify-between mb-3">
+							<div className="flex flex-col">
+								<label className="text-sm text-gray-300">
+									Engine Damage
+								</label>
+								<span className="text-[10px] text-gray-500">
+									Over-revving causes damage.
+								</span>
+							</div>
+							<button
+								onClick={() =>
+									setSettings((prev) => ({
+										...prev,
+										engineDamage: !prev.engineDamage,
+									}))
+								}
+								className={`pixel-btn px-4 py-2 text-xs transition-all ${
+									settings.engineDamage
+										? 'bg-green-900/50 border-green-500 text-green-400'
+										: 'bg-gray-800 border-gray-600 text-gray-400'
+								}`}
+							>
+								{settings.engineDamage ? '✓ ON' : '✕ OFF'}
+							</button>
+						</div>
+
+						{/* Shift Light RPM */}
+						<div className="mb-3">
+							<div className="flex justify-between items-center mb-2">
+								<label className="text-sm text-gray-300">
+									Shift Light RPM
+								</label>
+								<span className="text-xs text-gray-400 w-12 text-right">
+									{settings.shiftLightRPM > 0
+										? settings.shiftLightRPM
+										: 'AUTO'}
+								</span>
+							</div>
+							<PixelSlider
+								value={settings.shiftLightRPM}
+								onChange={(val) =>
+									setSettings((prev) => ({
+										...prev,
+										shiftLightRPM: val,
+									}))
+								}
+								min={0}
+								max={12000}
+								step={100}
+							/>
+							<div className="text-[10px] text-gray-500 mt-1">
+								Set to 0 for automatic (90% of redline).
+							</div>
+						</div>
+					</div>
+
 					{/* Visuals Section */}
 					<div className="border-b border-gray-700 pb-6">
 						<h3 className="text-sm text-indigo-400 mb-4 pixel-text">

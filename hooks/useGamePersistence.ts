@@ -40,7 +40,9 @@ export const useGamePersistence = (
 	setLevel: (level: number) => void,
 	inventory: any[], // using any[] to avoid circular dependency if InventoryItem is not exported from types
 	setInventory: (items: any[]) => void,
-	phase: string // Add phase to control sync behavior
+	phase: string, // Add phase to control sync behavior
+	settings: any, // GameSettings
+	setSettings: (s: any) => void
 ) => {
 	const [loaded, setLoaded] = useState(false);
 	const { token, user } = useAuth();
@@ -151,6 +153,14 @@ export const useGamePersistence = (
 				} else {
 					const newChallenges = generateDailyChallenges();
 					setDailyChallenges(newChallenges);
+				}
+
+				// Settings
+				const savedSettings = localStorage.getItem(
+					'shift_drift_settings'
+				);
+				if (savedSettings && savedSettings !== 'undefined') {
+					setSettings(JSON.parse(savedSettings));
 				}
 
 				// Garage & Current Car Logic
@@ -326,6 +336,9 @@ export const useGamePersistence = (
 						}
 					}
 
+					// Set Settings
+					if (data.settings) setSettings(data.settings);
+
 					// Initialize Daily Challenges (Client-side generation for now, could be server-side later)
 					const newChallenges = generateDailyChallenges();
 					setDailyChallenges(newChallenges);
@@ -343,7 +356,7 @@ export const useGamePersistence = (
 		} else {
 			loadFromLocalStorage();
 		}
-	}, [user, token]);
+	}, [user?.id, token]);
 
 	// Auto-save effects
 	useEffect(() => {
@@ -420,6 +433,11 @@ export const useGamePersistence = (
 		);
 	}, [inventory, loaded, user]);
 
+	useEffect(() => {
+		if (!loaded || user) return;
+		localStorage.setItem('shift_drift_settings', JSON.stringify(settings));
+	}, [settings, loaded, user]);
+
 	// --- Server Sync Logic ---
 	// SECURITY NOTE: Money is NOT synced automatically from localStorage to prevent manipulation
 	// Money updates should only happen via secure API endpoints when earned through legitimate gameplay
@@ -472,9 +490,17 @@ export const useGamePersistence = (
 			}
 		};
 
-		// Periodically sync money from server (every 10 seconds)
-		const interval = setInterval(fetchServerMoney, 10000);
-		return () => clearInterval(interval);
+		// Only fetch money when entering specific menu phases where balance matters
+		// or when returning to the map.
+		// We do NOT fetch periodically to avoid overwriting local optimistic updates.
+		if (
+			phase === 'MAP' ||
+			phase === 'GARAGE' ||
+			phase === 'AUCTION' ||
+			phase === 'SHOP'
+		) {
+			fetchServerMoney();
+		}
 	}, [loaded, token, user, setMoney, phase]);
 
 	// Consolidated state object for sync comparison (EXCLUDING money for security)
@@ -484,8 +510,9 @@ export const useGamePersistence = (
 			inventory,
 			level,
 			xp,
+			settings,
 		}),
-		[garage, inventory, level, xp]
+		[garage, inventory, level, xp, settings]
 	);
 
 	// Immediate Save Function
@@ -497,15 +524,17 @@ export const useGamePersistence = (
 				level: number;
 				xp: number;
 				money: number;
+				settings: any;
 			}>
 		) => {
 			if (!token || !user) return;
 
 			const body = {
 				garage,
-				inventory,
+				// inventory, // DO NOT include inventory by default. It overwrites server state with potentially stale local state.
 				level,
 				xp,
+				settings,
 				// money, // DO NOT include money by default. It overwrites server state with potentially stale local state.
 				...overrides,
 			};
@@ -560,6 +589,7 @@ export const useGamePersistence = (
 							inventory,
 							level,
 							xp,
+							settings,
 						}),
 					}
 				);

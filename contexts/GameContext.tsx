@@ -89,6 +89,10 @@ export interface GameContextType {
 
 export interface GameSettings {
 	particles: boolean;
+	manualClutch: boolean;
+	realisticTires: boolean;
+	engineDamage: boolean;
+	shiftLightRPM: number;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);

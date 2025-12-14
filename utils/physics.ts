@@ -1,5 +1,6 @@
 import { CarState, TuningState, InputState, Opponent } from '../types';
 import { AudioEngine } from '../components/AudioEngine';
+import { GameSettings } from '../contexts/GameContext';
 
 export const interpolateTorque = (
 	rpm: number,
@@ -28,9 +29,70 @@ export const updateCarPhysics = (
 	raceStartTime: number,
 	currentGhostRecording?: { current: any[] },
 	aiStats?: Opponent,
-	frictionMultiplier: number = 1.0
+	frictionMultiplier: number = 1.0,
+	settings?: GameSettings
 ) => {
 	const isLocked = raceStatus === 'COUNTDOWN';
+
+	// Initialize State
+	if (car.tireTemp === undefined) car.tireTemp = 20; // Cold start
+	if (car.engineHealth === undefined) car.engineHealth = 100;
+
+	// --- 0. Engine Damage Logic ---
+	if (settings?.engineDamage && !isAI) {
+		if (car.engineHealth <= 0) {
+			// Blown engine
+			car.rpm = 0;
+			return; // No physics updates
+		}
+
+		// Redline Damage
+		if (car.rpm > t.redlineRPM) {
+			const overRev = car.rpm - t.redlineRPM;
+			// Damage scales with how far over redline
+			const damage = (overRev / 1000) * dt * 5;
+			car.engineHealth = Math.max(0, car.engineHealth - damage);
+		}
+
+		// Money Shift (Instant Kill)
+		if (car.rpm > t.redlineRPM * 1.3) {
+			car.engineHealth = 0;
+			audioEngine.createPop(1.0); // Big bang
+		}
+	}
+
+	// --- 0.5 Tire Temp Logic ---
+	let tempGripMult = 1.0;
+	if (settings?.realisticTires && !isAI) {
+		// Heating: Burnout (Gas + Brake) or Hard Cornering/Accel
+		const isBurnout = inputs.gas && (inputs.brake || isLocked); // Brake isn't in InputState yet? Assuming brake logic exists or using isLocked for start line
+		// Actually InputState doesn't have brake? Let's check.
+		// It doesn't. But usually 'down' is brake in some games, or space.
+		// For now, let's assume burnout is high RPM low speed.
+
+		const slip = Math.abs(
+			(car.rpm / 60) *
+				t.gearRatios[car.gear] *
+				t.finalDriveRatio *
+				2 *
+				Math.PI *
+				0.3 -
+				car.velocity
+		);
+
+		if (slip > 5 && inputs.gas) {
+			// Spinning wheels heats tires
+			car.tireTemp = Math.min(120, car.tireTemp + dt * 20);
+		} else {
+			// Cooling
+			car.tireTemp = Math.max(20, car.tireTemp - dt * 2);
+		}
+
+		// Grip Curve
+		if (car.tireTemp < 40) tempGripMult = 0.8; // Cold
+		else if (car.tireTemp > 90) tempGripMult = 0.8; // Overheated
+		else tempGripMult = 1.1; // Optimal
+	}
 
 	// 1. Shifting Logic
 	if (isAI && aiStats && !isLocked) {
@@ -96,7 +158,12 @@ export const updateCarPhysics = (
 	let load = 0;
 
 	// Clutch / Coupling Logic
-	if (car.gear > 0 && !isLocked) {
+	let clutchEngaged = true;
+	if (settings?.manualClutch && !isAI) {
+		if (inputs.clutch) clutchEngaged = false;
+	}
+
+	if (car.gear > 0 && !isLocked && clutchEngaged) {
 		driveForce = (engineTorque * effectiveRatio) / wheelRadius;
 
 		// Smooth Launch / Clutch Slip Logic
@@ -146,7 +213,7 @@ export const updateCarPhysics = (
 		const gravity = 9.81;
 		// Base grip is ~1.0. Slick tires might be 1.2. Rain reduces this.
 		const maxTractionForce =
-			t.mass * gravity * t.tireGrip * frictionMultiplier;
+			t.mass * gravity * t.tireGrip * frictionMultiplier * tempGripMult;
 
 		// If driveForce exceeds traction, we spin (lose force)
 		// Simple model: Cap the force, and maybe spike RPM (already handled by clutch slip logic? No, that's clutch)
@@ -169,7 +236,8 @@ export const updateCarPhysics = (
 		const dragForce =
 			0.5 * 1.225 * car.velocity * car.velocity * t.dragCoefficient * 2.0;
 		const rollingRes = 150;
-		const netForce = driveForce - dragForce - rollingRes;
+		const brakingForce = inputs.brake ? t.brakingForce : 0;
+		const netForce = driveForce - dragForce - rollingRes - brakingForce;
 		const accel = netForce / t.mass;
 
 		car.velocity += accel * dt;

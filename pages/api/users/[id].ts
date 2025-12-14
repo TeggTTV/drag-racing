@@ -39,6 +39,7 @@ export default async function handler(
 					money: true,
 					garage: true,
 					inventory: true,
+					settings: true,
 					friendCode: true,
 					createdAt: true,
 					friendRequestsReceived: isSelf,
@@ -62,7 +63,7 @@ export default async function handler(
 
 		// SECURITY: Only accept garage, inventory, level, xp updates
 		// Money updates must go through secure transaction endpoints
-		const { garage, inventory, level, xp, money } = req.body;
+		const { garage, inventory, level, xp, money, settings } = req.body;
 
 		const updateData: any = {};
 		if (garage !== undefined) updateData.garage = garage;
@@ -70,6 +71,7 @@ export default async function handler(
 		if (level !== undefined) updateData.level = Math.floor(Number(level));
 		if (xp !== undefined) updateData.xp = Math.floor(Number(xp));
 		if (money !== undefined) updateData.money = Number(money);
+		if (settings !== undefined) updateData.settings = settings;
 
 		try {
 			const updatedUser = await prisma.user.update({

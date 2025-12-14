@@ -41,6 +41,8 @@ export const simulate0to60 = (tuning: TuningState): number => {
 		shiftUp: false,
 		shiftDown: false,
 		clutch: false,
+		brake: false,
+		purge: false,
 	};
 
 	let time = 0;
@@ -110,6 +112,8 @@ export const simulateQuarterMile = (tuning: TuningState): number => {
 		shiftUp: false,
 		shiftDown: false,
 		clutch: false,
+		brake: false,
+		purge: false,
 	};
 
 	let time = 0;
@@ -176,6 +180,8 @@ export const simulateTopSpeed = (tuning: TuningState): number => {
 		shiftUp: false,
 		shiftDown: false,
 		clutch: false,
+		brake: false,
+		purge: false,
 	};
 
 	let time = 0;

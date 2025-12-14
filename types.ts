@@ -16,7 +16,9 @@ export interface InputState {
 	gas: boolean;
 	shiftUp: boolean;
 	shiftDown: boolean;
-	clutch: boolean;
+	clutch: boolean; // New Manual Clutch
+	brake: boolean;
+	purge: boolean; // Nitrous Purge
 	steerLeft?: boolean;
 	steerRight?: boolean;
 }
@@ -149,6 +151,8 @@ export interface SavedTune {
 	rarityMultiplier?: number;
 	dynoHistory?: { rpm: number; torque: number; hp: number }[];
 	installedItems?: InventoryItem[];
+	masteryXP?: number;
+	masteryLevel?: number;
 }
 
 export interface JunkyardCar extends SavedTune {
@@ -198,6 +202,8 @@ export interface CarState {
 	angle?: number;
 	steerAngle?: number;
 	lateralVelocity?: number;
+	tireTemp?: number; // 0-100, 50 is optimal
+	engineHealth?: number; // 0-100
 }
 
 export interface GhostFrame {

@@ -134,11 +134,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 	useEffect(() => {
 		if (token && isOnline) {
 			refreshUser();
-			// Poll every 5 seconds for updates (invites, requests, etc.)
-			const interval = setInterval(() => {
-				refreshUser();
-			}, 5000);
-			return () => clearInterval(interval);
 		}
 	}, [token, isOnline, refreshUser]);
 

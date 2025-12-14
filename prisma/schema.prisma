@@ -25,6 +25,7 @@ model User {
   // Game Data
   inventory Json[]
   garage    Json[]
+  settings  Json?
 
   // Social
   friendCode             String   @unique @default(cuid())

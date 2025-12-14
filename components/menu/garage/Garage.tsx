@@ -295,7 +295,7 @@ export const Garage: React.FC<GarageProps> = ({
 										? 'border-indigo-500'
 										: 'border-gray-800 hover:border-gray-500';
 								let rarityColor = 'text-white';
-								let badgeBg = 'bg-gray-800';
+								let badgeBg = 'bg-gray-800 text-gray-300';
 
 								// Override border for special rarities if not active
 								if (index !== currentCarIndex) {
@@ -395,6 +395,14 @@ export const Garage: React.FC<GarageProps> = ({
 														currentCarIndex && (
 														<span className="text-[10px] text-indigo-400 font-bold">
 															ACTIVE
+														</span>
+													)}
+													{/* Mastery Badge */}
+													{(car.masteryLevel || 0) >
+														0 && (
+														<span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-indigo-900/80 text-indigo-200 border border-indigo-500/30">
+															LVL{' '}
+															{car.masteryLevel}
 														</span>
 													)}
 												</div>

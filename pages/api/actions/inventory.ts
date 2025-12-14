@@ -1,0 +1,133 @@
+import type { NextApiRequest, NextApiResponse } from 'next';
+import prisma from '../../../utils/prisma';
+import jwt from 'jsonwebtoken';
+import { ItemMerge } from '../../../utils/ItemMerge';
+import { InventoryItem } from '../../../types';
+
+const JWT_SECRET =
+	process.env.JWT_SECRET || 'fallback_secret_do_not_use_in_prod';
+
+export default async function handler(
+	req: NextApiRequest,
+	res: NextApiResponse
+) {
+	if (req.method !== 'POST') {
+		return res.status(405).json({ message: 'Method not allowed' });
+	}
+
+	// Auth check
+	const authHeader = req.headers.authorization;
+	let userId: string | null = null;
+	if (authHeader && authHeader.startsWith('Bearer ')) {
+		try {
+			const token = authHeader.split(' ')[1];
+			const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+			userId = decoded.userId;
+		} catch (e) {
+			return res.status(401).json({ message: 'Unauthorized' });
+		}
+	} else {
+		return res.status(401).json({ message: 'Unauthorized' });
+	}
+
+	const { action, item1Id, item2Id, itemId } = req.body;
+
+	if (!action) {
+		return res.status(400).json({ message: 'Missing action' });
+	}
+
+	try {
+		// Fetch current user inventory
+		const user = await prisma.user.findUnique({
+			where: { id: userId },
+			select: { inventory: true },
+		});
+
+		if (!user) {
+			return res.status(404).json({ message: 'User not found' });
+		}
+
+		let inventory = (user.inventory as unknown as InventoryItem[]) || [];
+
+		if (action === 'MERGE') {
+			if (!item1Id || !item2Id) {
+				return res.status(400).json({ message: 'Missing item IDs' });
+			}
+
+			const item1 = inventory.find((i) => i.instanceId === item1Id);
+			const item2 = inventory.find((i) => i.instanceId === item2Id);
+
+			if (!item1 || !item2) {
+				return res.status(404).json({ message: 'Items not found' });
+			}
+
+			const newItem = ItemMerge.mergeItems(item1, item2);
+
+			if (!newItem) {
+				return res.status(400).json({ message: 'Merge failed' });
+			}
+
+			// Remove old items, add new item
+			inventory = inventory.filter(
+				(i) => i.instanceId !== item1Id && i.instanceId !== item2Id
+			);
+			inventory.push(newItem);
+
+			// Update DB
+			await prisma.user.update({
+				where: { id: userId },
+				data: { inventory: inventory as any },
+			});
+
+			return res.status(200).json({ inventory, newItem });
+		}
+
+		if (action === 'EQUIP') {
+			if (!itemId) {
+				return res.status(400).json({ message: 'Missing item ID' });
+			}
+
+			const item = inventory.find((i) => i.instanceId === itemId);
+			if (!item) {
+				return res.status(404).json({ message: 'Item not found' });
+			}
+
+			// Conflict logic (simplified from client)
+			const isConflict = (
+				existing: InventoryItem,
+				newOne: InventoryItem
+			) => {
+				if (newOne.category && existing.category) {
+					return newOne.category === existing.category;
+				}
+				if (newOne.category) {
+					return newOne.category === existing.category;
+				}
+				return newOne.type === existing.type;
+			};
+
+			inventory = inventory.map((i) => {
+				if (i.instanceId === itemId) {
+					return { ...i, equipped: true };
+				}
+				if (i.equipped && isConflict(i, item)) {
+					return { ...i, equipped: false };
+				}
+				return i;
+			});
+
+			// Update DB
+			await prisma.user.update({
+				where: { id: userId },
+				data: { inventory: inventory as any },
+			});
+
+			return res.status(200).json({ inventory });
+		}
+
+		return res.status(400).json({ message: 'Invalid action' });
+	} catch (e) {
+		console.error('Inventory action error:', e);
+		return res.status(500).json({ message: 'Internal server error' });
+	}
+}

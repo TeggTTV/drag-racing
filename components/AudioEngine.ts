@@ -471,7 +471,7 @@ export class AudioEngine {
 		barkOsc.stop(now + 0.2);
 	}
 
-	private createPop(volume: number) {
+	public createPop(volume: number) {
 		if (!this.ctx || !this.engineGain) return; // Use engineGain
 		const duration = 0.15;
 		const bufferSize = this.ctx.sampleRate * duration;

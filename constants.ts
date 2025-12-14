@@ -1276,6 +1276,9 @@ export const CONTROLS = {
 	GAS: 'ArrowUp',
 	SHIFT_UP: 'ArrowRight',
 	SHIFT_DOWN: 'ArrowLeft',
+	CLUTCH: ' ',
+	BRAKE: 'ArrowDown',
+	PURGE: 'p',
 };
 
 export const RIVALS: Rival[] = [
