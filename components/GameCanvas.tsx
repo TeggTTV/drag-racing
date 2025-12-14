@@ -384,13 +384,13 @@ const GameCanvas: React.FC = () => {
 					prev.filter((p) => p.instanceId !== part.instanceId)
 				);
 				showToast(`Bought ${part.name}`, 'SUCCESS');
-				audioRef.current.playUISound('purchase');
+				// audioRef.current.playUISound('purchase');
 
 				// Persist inventory change
 				saveGame({ inventory: newInventory });
 			} else {
 				showToast('Not enough money!', 'ERROR');
-				audioRef.current.playUISound('error');
+				// audioRef.current.playUISound('error');
 			}
 		},
 		[money, showToast, token, saveGame] // Removed inventory from dependency to avoid stale closure issues if we don't use it directly in saveGame
@@ -2211,7 +2211,7 @@ const GameCanvas: React.FC = () => {
 										`Car Mastery Level Up! LVL ${mLevel}`,
 										'UNLOCK'
 									);
-									audioRef.current.playUISound('levelup');
+									// audioRef.current.playUISound('levelup');
 								}
 
 								// Update Car

@@ -1,4 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
+import { XPFloatingText } from '../shared/XPFloatingText';
+import { FloatingItem } from '../shared/FloatingItem';
 import DynoGraph from './DynoGraph';
 import DynoTab from './DynoTab';
 // import UpgradesTab from './UpgradesTab';
@@ -41,7 +43,7 @@ interface GarageProps {
 	onBuyMods: (mods: ModNode[]) => void;
 	onBack: () => void;
 	userInventory: InventoryItem[];
-	onEquip: (item: InventoryItem) => void;
+	onEquip: (item: InventoryItem) => Promise<number>;
 	onRemove: (item: InventoryItem) => void;
 	onSell: (item: InventoryItem) => void;
 	onDestroy: (item: InventoryItem) => void;
@@ -99,6 +101,74 @@ export const Garage: React.FC<GarageProps> = ({
 		x: number;
 		y: number;
 	} | null>(null);
+
+	const [xpAnimations, setXpAnimations] = useState<
+		{
+			id: string;
+			startX: number;
+			startY: number;
+			endX: number;
+			endY: number;
+			amount: number;
+		}[]
+	>([]);
+
+	const masteryBarRef = useRef<HTMLDivElement>(null);
+	const installedContainerRef = useRef<HTMLDivElement>(null);
+
+	const [partAnimations, setPartAnimations] = useState<
+		{
+			id: string;
+			item: InventoryItem;
+			startX: number;
+			startY: number;
+			endX: number;
+			endY: number;
+		}[]
+	>([]);
+
+	const handleEquipWrapper = async (
+		item: InventoryItem,
+		coords?: { x: number; y: number }
+	) => {
+		const xp = await onEquip(item);
+		if (coords) {
+			// Part Animation
+			if (installedContainerRef.current) {
+				const containerRect =
+					installedContainerRef.current.getBoundingClientRect();
+				const id = Math.random().toString(36).substr(2, 9);
+				setPartAnimations((prev) => [
+					...prev,
+					{
+						id,
+						item,
+						startX: coords.x,
+						startY: coords.y,
+						endX: containerRect.left + containerRect.width / 2,
+						endY: containerRect.top + 40,
+					},
+				]);
+			}
+
+			// XP Animation
+			if (xp > 0 && masteryBarRef.current) {
+				const barRect = masteryBarRef.current.getBoundingClientRect();
+				const id = Math.random().toString(36).substr(2, 9);
+				setXpAnimations((prev) => [
+					...prev,
+					{
+						id,
+						startX: coords.x,
+						startY: coords.y,
+						endX: barRect.left + barRect.width / 2,
+						endY: barRect.top + barRect.height / 2,
+						amount: xp,
+					},
+				]);
+			}
+		}
+	};
 
 	// Calculate preview tuning for hover
 	const previewTuning = useMemo(() => {
@@ -432,9 +502,17 @@ export const Garage: React.FC<GarageProps> = ({
 													)}
 												</div>
 												{/* Mastery Progress Bar */}
-												{(car.masteryLevel || 0) >
+												{(car.masteryLevel || 0) >=
 													0 && (
-													<div className="w-full h-1 bg-gray-800 rounded-full mt-1 overflow-hidden">
+													<div
+														ref={
+															index ===
+															currentCarIndex
+																? masteryBarRef
+																: null
+														}
+														className="w-full h-1 bg-gray-800 rounded-full mt-1 overflow-hidden"
+													>
 														<div
 															className="h-full bg-indigo-500"
 															style={{
@@ -585,7 +663,7 @@ export const Garage: React.FC<GarageProps> = ({
 								(i) => i.equipped
 							)}
 							carName={garage[currentCarIndex]?.name}
-							onEquip={onEquip}
+							onEquip={handleEquipWrapper}
 							onRemove={onRemove}
 							onSell={onSell}
 							onDestroy={onDestroy}
@@ -595,6 +673,7 @@ export const Garage: React.FC<GarageProps> = ({
 							onMergeAll={onMergeAll}
 							onRemoveAll={onRemoveAll}
 							money={money}
+							installedContainerRef={installedContainerRef}
 						/>
 					</div>
 
@@ -758,6 +837,38 @@ export const Garage: React.FC<GarageProps> = ({
 					</button>
 				</div>
 			)}
+
+			{partAnimations.map((anim) => (
+				<FloatingItem
+					key={anim.id}
+					item={anim.item}
+					startX={anim.startX}
+					startY={anim.startY}
+					endX={anim.endX}
+					endY={anim.endY}
+					onComplete={() =>
+						setPartAnimations((prev) =>
+							prev.filter((a) => a.id !== anim.id)
+						)
+					}
+				/>
+			))}
+
+			{xpAnimations.map((anim) => (
+				<XPFloatingText
+					key={anim.id}
+					startX={anim.startX}
+					startY={anim.startY}
+					endX={anim.endX}
+					endY={anim.endY}
+					amount={anim.amount}
+					onComplete={() =>
+						setXpAnimations((prev) =>
+							prev.filter((a) => a.id !== anim.id)
+						)
+					}
+				/>
+			))}
 		</div>
 	);
 };

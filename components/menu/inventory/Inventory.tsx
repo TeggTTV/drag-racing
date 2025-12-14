@@ -8,7 +8,7 @@ interface InventoryProps {
 	items: InventoryItem[]; // Uninstalled items
 	installedItems: InventoryItem[]; // Installed on current car
 	carName?: string;
-	onEquip: (item: InventoryItem) => void; // Install
+	onEquip: (item: InventoryItem, coords: { x: number; y: number }) => void; // Install
 	onRemove: (item: InventoryItem) => void; // Uninstall
 	onSell: (item: InventoryItem) => void; // For Auction
 	onDestroy: (item: InventoryItem) => void;
@@ -18,6 +18,7 @@ interface InventoryProps {
 	onMergeAll: () => void;
 	onRemoveAll: () => void;
 	money: number;
+	installedContainerRef?: React.RefObject<HTMLDivElement>;
 }
 
 export const Inventory: React.FC<InventoryProps> = ({
@@ -34,6 +35,7 @@ export const Inventory: React.FC<InventoryProps> = ({
 	onMergeAll,
 	onRemoveAll,
 	money,
+	installedContainerRef,
 }) => {
 	const [mergeSourceItem, setMergeSourceItem] =
 		useState<InventoryItem | null>(null);
@@ -350,7 +352,10 @@ export const Inventory: React.FC<InventoryProps> = ({
 			</div>
 
 			{/* Bottom Panel: Installed Mods */}
-			<div className="h-1/3 bg-gray-900/90 p-4 rounded-lg relative flex flex-col overflow-hidden border-t-2 border-indigo-900/50">
+			<div
+				ref={installedContainerRef}
+				className="h-1/3 bg-gray-900/90 p-4 rounded-lg relative flex flex-col overflow-hidden border-t-2 border-indigo-900/50"
+			>
 				<h2 className="text-lg font-bold text-indigo-400 pixel-text mb-2 flex justify-between items-center bg-indigo-900/20 p-2 rounded">
 					<span>
 						INSTALLED ON {carName ? carName.toUpperCase() : 'CAR'}
@@ -464,7 +469,10 @@ export const Inventory: React.FC<InventoryProps> = ({
 					) : (
 						<button
 							onClick={() => {
-								onEquip(contextMenu.item);
+								onEquip(contextMenu.item, {
+									x: contextMenu.x,
+									y: contextMenu.y,
+								});
 								setContextMenu(null);
 							}}
 							className="text-left px-2 py-1.5 hover:bg-blue-600 text-white text-xs font-bold rounded flex items-center gap-2"

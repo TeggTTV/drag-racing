@@ -91,8 +91,10 @@ export const GameMenu = () => {
 		junkyardParts,
 		onBuyJunkyardPart,
 		setShowDailyRewards,
+		setGarage,
 	} = useGame();
 
+	const { token, user } = useAuth();
 	const { play } = useSound();
 	const [showSettings, setShowSettings] = useState(false);
 	const [activeListings, setActiveListings] = useState<AuctionListing[]>([]);
@@ -130,7 +132,7 @@ export const GameMenu = () => {
 		setUserInventory((prev) => [...prev, item]);
 	};
 
-	const handleEquipItem = async (item: InventoryItem) => {
+	const handleEquipItem = async (item: InventoryItem): Promise<number> => {
 		// Conflict Check Logic
 		const isConflict = (existing: InventoryItem, newOne: InventoryItem) => {
 			if (newOne.category && existing.category) {
@@ -174,23 +176,68 @@ export const GameMenu = () => {
 			return next;
 		});
 
+		// Mastery XP Logic
+		let xpGained = 0;
+		if (!item.masteryGiven) {
+			const baseXP = 50;
+			const rarityMult: Record<string, number> = {
+				COMMON: 1,
+				UNCOMMON: 1.5,
+				RARE: 2,
+				EPIC: 3,
+				LEGENDARY: 5,
+				EXOTIC: 10,
+			};
+			const mult = rarityMult[item.rarity] || 1;
+			const conditionFactor = (item.condition || 100) / 100;
+			xpGained = Math.floor(baseXP * mult * conditionFactor);
+		} else {
+			showToast('Mastery XP already earned for this item', 'INFO');
+		}
+
 		if (!token) {
 			// Offline Fallback
 			setUserInventory((prev) => {
 				const newInventory = prev.map((i) => {
 					if (i.instanceId === item.instanceId) {
-						return { ...i, equipped: true };
+						return { ...i, equipped: true, masteryGiven: true };
 					}
 					if (i.equipped && isConflict(i, item)) {
 						return { ...i, equipped: false };
 					}
 					return i;
 				});
-				saveGame({ inventory: newInventory });
+
+				// Update Garage Mastery XP
+				if (xpGained > 0 && garage[currentCarIndex]) {
+					const updatedCar = { ...garage[currentCarIndex] };
+					let currentXP = (updatedCar.masteryXP || 0) + xpGained;
+					let currentLevel = updatedCar.masteryLevel || 0;
+
+					let threshold = (currentLevel || 1) * 1000;
+					while (currentXP >= threshold) {
+						currentXP -= threshold;
+						currentLevel++;
+						threshold = (currentLevel || 1) * 1000;
+					}
+
+					updatedCar.masteryXP = currentXP;
+					updatedCar.masteryLevel = currentLevel;
+
+					const newGarage = [...garage];
+					newGarage[currentCarIndex] = updatedCar;
+					// Delay UI update to sync with animation (1.1s total duration)
+					setTimeout(() => setGarage(newGarage), 1100);
+					saveGame({ inventory: newInventory, garage: newGarage });
+				} else {
+					saveGame({ inventory: newInventory });
+				}
+
 				return newInventory;
 			});
+
 			showToast(`Equipped ${item.name}`, 'SUCCESS');
-			return;
+			return xpGained;
 		}
 
 		// Server Action
@@ -204,26 +251,30 @@ export const GameMenu = () => {
 				body: JSON.stringify({
 					action: 'EQUIP',
 					itemId: item.instanceId,
+					currentCarIndex,
 				}),
 			});
 
 			if (res.ok) {
 				const data = await res.json();
 				setUserInventory(data.inventory);
+				if (data.garage) {
+					// Delay UI update to sync with animation (1.1s total duration)
+					setTimeout(() => setGarage(data.garage), 1100);
+				}
 				showToast(`Equipped ${item.name}`, 'SUCCESS');
+				return data.xpGained || 0;
 			} else {
 				const err = await res.json();
 				showToast(err.message || 'Equip failed', 'ERROR');
-				// Revert optimistic update? (Complex, skipping for now as rare)
+				return 0;
 			}
 		} catch (e) {
 			console.error('Equip error:', e);
 			showToast('Equip failed', 'ERROR');
+			return 0;
 		}
 	};
-
-	// --- Auction Logic ---
-	const { token, user } = useAuth(); // Need auth for API calls
 
 	// Fetch Listings on Mount/Phase Change and Poll
 	useEffect(() => {

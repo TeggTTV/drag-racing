@@ -97,7 +97,11 @@ export type ModType =
 	| 'COOLING'
 	| 'AERO'
 	| 'SUSPENSION'
-	| 'VISUAL';
+	| 'VISUAL'
+	| 'PAINT'
+	| 'BRAKES'
+	| 'INTERIOR'
+	| 'ELECTRONICS';
 
 export interface DailyReward {
 	day: number;
@@ -133,6 +137,7 @@ export interface InventoryItem {
 	spriteIndex?: number;
 	isSpecial?: boolean;
 	specialName?: string;
+	masteryGiven?: boolean;
 }
 
 export interface Crate {

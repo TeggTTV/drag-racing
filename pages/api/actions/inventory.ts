@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import prisma from '../../../utils/prisma';
 import jwt from 'jsonwebtoken';
 import { ItemMerge } from '../../../utils/ItemMerge';
-import { InventoryItem } from '../../../types';
+import { InventoryItem, SavedTune } from '../../../types';
 
 const JWT_SECRET =
 	process.env.JWT_SECRET || 'fallback_secret_do_not_use_in_prod';
@@ -40,7 +40,7 @@ export default async function handler(
 		// Fetch current user inventory
 		const user = await prisma.user.findUnique({
 			where: { id: userId },
-			select: { inventory: true },
+			select: { inventory: true, garage: true },
 		});
 
 		if (!user) {
@@ -87,6 +87,8 @@ export default async function handler(
 				return res.status(400).json({ message: 'Missing item ID' });
 			}
 
+			const { currentCarIndex } = req.body;
+
 			const item = inventory.find((i) => i.instanceId === itemId);
 			if (!item) {
 				return res.status(404).json({ message: 'Item not found' });
@@ -106,9 +108,26 @@ export default async function handler(
 				return newOne.type === existing.type;
 			};
 
+			// Mastery XP Logic
+			let xpGained = 0;
+			if (!item.masteryGiven) {
+				const baseXP = 50;
+				const rarityMult: Record<string, number> = {
+					COMMON: 1,
+					UNCOMMON: 1.5,
+					RARE: 2,
+					EPIC: 3,
+					LEGENDARY: 5,
+					EXOTIC: 10,
+				};
+				const mult = rarityMult[item.rarity] || 1;
+				const conditionFactor = (item.condition || 100) / 100;
+				xpGained = Math.floor(baseXP * mult * conditionFactor);
+			}
+
 			inventory = inventory.map((i) => {
 				if (i.instanceId === itemId) {
-					return { ...i, equipped: true };
+					return { ...i, equipped: true, masteryGiven: true };
 				}
 				if (i.equipped && isConflict(i, item)) {
 					return { ...i, equipped: false };
@@ -116,13 +135,39 @@ export default async function handler(
 				return i;
 			});
 
+			// Update Garage if XP gained
+			let garage = (user.garage as unknown as SavedTune[]) || [];
+			if (
+				xpGained > 0 &&
+				typeof currentCarIndex === 'number' &&
+				garage[currentCarIndex]
+			) {
+				const updatedCar = { ...garage[currentCarIndex] };
+				let currentXP = (updatedCar.masteryXP || 0) + xpGained;
+				let currentLevel = updatedCar.masteryLevel || 0;
+
+				let threshold = (currentLevel || 1) * 1000;
+				while (currentXP >= threshold) {
+					currentXP -= threshold;
+					currentLevel++;
+					threshold = (currentLevel || 1) * 1000;
+				}
+
+				updatedCar.masteryXP = currentXP;
+				updatedCar.masteryLevel = currentLevel;
+				garage[currentCarIndex] = updatedCar;
+			}
+
 			// Update DB
 			await prisma.user.update({
 				where: { id: userId },
-				data: { inventory: inventory as any },
+				data: {
+					inventory: inventory as any,
+					garage: garage as any,
+				},
 			});
 
-			return res.status(200).json({ inventory });
+			return res.status(200).json({ inventory, xpGained, garage });
 		}
 
 		return res.status(400).json({ message: 'Invalid action' });
