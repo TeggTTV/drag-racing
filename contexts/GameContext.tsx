@@ -4,6 +4,7 @@ import {
 	GamePhase,
 	InventoryItem,
 	JunkyardCar,
+	JunkyardItem,
 	Mission,
 	ModNode,
 	Rival,
@@ -56,6 +57,8 @@ export interface GameContextType {
 	onRefreshJunkyard: () => void;
 	onRestoreCar: (index: number) => void;
 	onScrapCar: (index: number) => void;
+	junkyardParts: JunkyardItem[];
+	onBuyJunkyardPart: (part: JunkyardItem) => void;
 	missionSelectTab: 'CAMPAIGN' | 'UNDERGROUND' | 'DAILY' | 'RIVALS';
 	setMissionSelectTab: (
 		tab: 'CAMPAIGN' | 'UNDERGROUND' | 'DAILY' | 'RIVALS'
@@ -74,6 +77,7 @@ export interface GameContextType {
 	onBuyShopItem: (item: InventoryItem) => void;
 	onRefreshDailyShop: () => void;
 	onManualTuningChange: (tuning: Partial<TuningState>) => void;
+	onTestTrack: () => void;
 	settings: GameSettings;
 	setSettings: React.Dispatch<React.SetStateAction<GameSettings>>;
 	saveGame: (

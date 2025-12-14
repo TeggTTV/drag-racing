@@ -241,6 +241,17 @@ export class AudioEngine {
 		}
 	}
 
+	startEngine(tuning: any) {
+		this.setConfiguration(
+			tuning.cylinders,
+			tuning.exhaustOpenness,
+			tuning.backfireAggression,
+			tuning.turboIntensity
+		);
+		this.setVolume(0.5); // Default volume
+		this.start();
+	}
+
 	// Engine Start/Stop
 	start() {
 		if (this.engineGain && this.ctx) {

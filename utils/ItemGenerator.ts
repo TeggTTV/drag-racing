@@ -233,4 +233,34 @@ export class ItemGenerator {
 
 		return item;
 	}
+
+	static generateJunkyardItem(): InventoryItem {
+		// Weighted rarity for junkyard (Mostly trash)
+		const rand = Math.random();
+		let rarity: ItemRarity = 'COMMON';
+		if (rand > 0.98) rarity = 'LEGENDARY';
+		else if (rand > 0.9) rarity = 'EPIC';
+		else if (rand > 0.75) rarity = 'RARE';
+		else if (rand > 0.5) rarity = 'UNCOMMON';
+
+		const item = this.generateItem(rarity);
+
+		// Junkyard items have typically lower condition
+		// But occasionally you find a gem (high condition)
+		if (Math.random() > 0.9) {
+			// Hidden Gem!
+			item.condition = Math.floor(80 + Math.random() * 20);
+		} else {
+			// Standard Junk
+			item.condition = Math.floor(10 + Math.random() * 50); // 10% - 60%
+		}
+
+		// Recalculate value based on poor condition
+		// Base generateItem already factors in condition somewhat, but let's be explicit for Junkyard pricing
+		// Actually, generateItem sets value based on condition.
+		// But we want Junkyard PRICE to be cheap.
+		// We will handle price setting in the GameCanvas logic where we wrap it in JunkyardItem.
+
+		return item;
+	}
 }

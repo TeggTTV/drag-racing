@@ -17,6 +17,7 @@ import { useGamePersistence } from '../hooks/useGamePersistence';
 import { ItemMerge } from '../utils/ItemMerge';
 import { getFullUrl } from '../utils/prisma';
 import { ItemGenerator } from '../utils/ItemGenerator';
+import { TestTrackUtils } from '../utils/TestTrackUtils';
 import { TopBar } from '@/components/menu/shared/TopBar';
 import Dashboard from './Dashboard';
 import { SoundProvider } from '../contexts/SoundContext';
@@ -45,6 +46,7 @@ import {
 	Rival,
 	InputState,
 	JunkyardCar,
+	JunkyardItem,
 	InventoryItem,
 	Season,
 } from '../types';
@@ -159,6 +161,7 @@ const GameCanvas: React.FC = () => {
 
 	// Junkyard State
 	const [junkyardCars, setJunkyardCars] = useState<JunkyardCar[]>([]);
+	const [junkyardParts, setJunkyardParts] = useState<JunkyardItem[]>([]);
 	const [dealershipCars, setDealershipCars] = useState<JunkyardCar[]>([]);
 	const [refreshCount, setRefreshCount] = useState(0);
 
@@ -230,6 +233,16 @@ const GameCanvas: React.FC = () => {
 			);
 		}
 		setJunkyardCars(cars);
+
+		// Generate Parts
+		const parts: JunkyardItem[] = [];
+		for (let i = 0; i < 12; i++) {
+			const item = ItemGenerator.generateJunkyardItem();
+			// Price is based on value but heavily discounted due to junkyard status
+			const price = Math.max(50, Math.floor(item.value * 0.8));
+			parts.push({ ...item, price });
+		}
+		setJunkyardParts(parts);
 	}, []);
 
 	// Dealership Logic
@@ -242,6 +255,43 @@ const GameCanvas: React.FC = () => {
 		}
 		setDealershipCars(cars);
 	}, []);
+
+	const buyJunkyardPart = useCallback(
+		(part: JunkyardItem) => {
+			if (money >= part.price) {
+				if (token) {
+					processMoneyTransaction(
+						token,
+						'SHOP_PURCHASE',
+						-part.price,
+						{ itemId: part.instanceId }
+					)
+						.then((res) => setMoney(res.newBalance))
+						.catch((e) => {
+							console.error(e);
+							setMoney((m) => m - part.price); // Fallback
+						});
+				} else {
+					setMoney((m) => m - part.price);
+				}
+
+				const newInventory = [...inventory, part];
+				setInventory(newInventory);
+				setJunkyardParts((prev) =>
+					prev.filter((p) => p.instanceId !== part.instanceId)
+				);
+				showToast(`Bought ${part.name}`, 'SUCCESS');
+				audioRef.current.playUISound('purchase');
+
+				// Persist inventory change
+				saveGame({ inventory: newInventory });
+			} else {
+				showToast('Not enough money!', 'ERROR');
+				audioRef.current.playUISound('error');
+			}
+		},
+		[money, showToast, token, saveGame] // Removed inventory from dependency to avoid stale closure issues if we don't use it directly in saveGame
+	);
 
 	useEffect(() => {
 		if (junkyardCars.length === 0) {
@@ -1028,6 +1078,9 @@ const GameCanvas: React.FC = () => {
 	const activeGhost = useRef<GhostFrame[] | null>(null);
 	const currentGhostRecording = useRef<GhostFrame[]>([]);
 	const raceFinishedProcessingRef = useRef(false);
+	const maxTreeYRef = useRef(0); // For procedural generation
+	const quarterMileTimeRef = useRef<number | null>(null);
+	const mileTimeRef = useRef<number | null>(null);
 
 	// State for React UI
 	const [uiState, setUiState] = useState<{
@@ -1057,11 +1110,26 @@ const GameCanvas: React.FC = () => {
 				audioInitializedRef.current = true;
 			}
 
-			if (phase !== 'RACE' && phase !== 'ONLINE_RACE') return;
+			if (
+				phase !== 'RACE' &&
+				phase !== 'ONLINE_RACE' &&
+				phase !== 'TEST_TRACK'
+			)
+				return;
 
 			// Prevent repeated keydown events when key is held
 			if (keysPressed.current.has(e.key)) return;
 			keysPressed.current.add(e.key);
+
+			if (e.key === 'Escape') {
+				if (phase === 'TEST_TRACK') {
+					// Exit Test Track
+					audioRef.current.stop();
+					setRaceResult(null);
+					setPhase('GARAGE');
+					return;
+				}
+			}
 
 			switch (e.key) {
 				case CONTROLS.GAS:
@@ -1525,6 +1593,71 @@ const GameCanvas: React.FC = () => {
 		}
 	}, [xp, level, showToast, saveGame]);
 
+	const startTestTrack = useCallback(() => {
+		setPhase('TEST_TRACK');
+		setRaceStatus('COUNTDOWN');
+		setCountdownNum(3);
+		setRaceResult(null);
+		setMissedGearAlert(false);
+
+		// Reset Car States
+		setUiState({
+			player: {
+				y: 0,
+				velocity: 0,
+				rpm: effectiveTuning.idleRPM,
+				gear: 0,
+				finished: false,
+				finishTime: 0,
+				tireTemp: 20,
+				engineHealth: 100,
+			},
+			opponent: {
+				y: 0,
+				velocity: 0,
+				rpm: 1000,
+				gear: 0,
+				finished: false,
+				finishTime: 0,
+			},
+		});
+
+		// Reset Inputs
+		inputsRef.current = {
+			gas: false,
+			shiftUp: false,
+			shiftDown: false,
+			clutch: false,
+			brake: false,
+			purge: false,
+		};
+		lastGearRef.current = 0;
+		shiftDebounce.current = false;
+		raceStartTimeRef.current = 0; // Will set when countdown ends
+		quarterMileTimeRef.current = null;
+		mileTimeRef.current = null;
+
+		// Audio
+		audioRef.current.startEngine(effectiveTuning);
+		// No opponent audio for test track
+
+		// --- Setup Environment (Random Season/Weather) ---
+		const seasons: Season[] = ['SPRING', 'SUMMER', 'FALL', 'WINTER'];
+		const randomSeason =
+			seasons[Math.floor(Math.random() * seasons.length)];
+		const isRain = Math.random() < 0.2 && randomSeason !== 'WINTER';
+		setWeather({
+			type: isRain ? 'RAIN' : 'SUNNY',
+			intensity: isRain ? 0.5 + Math.random() * 0.5 : 0,
+			season: randomSeason,
+		});
+
+		// Initial Trees
+		const newTrees = TestTrackUtils.generateInitialTrees();
+		setBgTrees(newTrees);
+		maxTreeYRef.current = 500;
+	}, [effectiveTuning]);
+
 	// --- Main Loop ---
 	useEffect(() => {
 		const canvas = canvasRef.current;
@@ -1540,12 +1673,15 @@ const GameCanvas: React.FC = () => {
 			lastTimeRef.current = time;
 
 			if (
-				(phase === 'RACE' || phase === 'ONLINE_RACE') &&
-				missionRef.current
+				((phase === 'RACE' || phase === 'ONLINE_RACE') &&
+					missionRef.current) ||
+				phase === 'TEST_TRACK'
 			) {
 				const p = playerRef.current;
 				const o = opponentRef.current;
 				const m = missionRef.current;
+				const raceDistance =
+					phase === 'TEST_TRACK' ? 402 : m?.distance || 402;
 
 				// Countdown Logic
 				if (phase === 'ONLINE_RACE' && raceStatus === 'COUNTDOWN') {
@@ -1612,7 +1748,8 @@ const GameCanvas: React.FC = () => {
 						}
 					}
 					if (
-						p.y >= m.distance
+						p.y >= raceDistance &&
+						phase !== 'TEST_TRACK'
 						// raceStartTimeRef.current > 0
 						// &&
 						// !p.finished
@@ -1646,7 +1783,7 @@ const GameCanvas: React.FC = () => {
 						inputsRef.current.shiftDown = false;
 					} else {
 						// Keep car stopped at finish line
-						p.y = Math.min(p.y, m.distance);
+						p.y = Math.min(p.y, raceDistance);
 						p.velocity = 0;
 						audioRef.current.setVolume(0);
 					}
@@ -1654,11 +1791,51 @@ const GameCanvas: React.FC = () => {
 					audioRef.current.setVolume(0);
 				}
 
-				if (!o.finished) {
+				// --- Procedural Tree Generation (Test Track) ---
+				if (phase === 'TEST_TRACK') {
+					const viewDistance = 500; // Generate 500m ahead
+					if (p.y + viewDistance > maxTreeYRef.current) {
+						const { trees: newTrees, newMaxY } =
+							TestTrackUtils.generateProceduralTrees(
+								maxTreeYRef.current
+							);
+
+						setBgTrees((prev) => {
+							// Filter old trees behind player to save memory
+							const keep = prev.filter((t) => t.y > p.y - 100);
+							const combined = [...keep, ...newTrees];
+							combined.sort((a, b) => b.y - a.y);
+							return combined;
+						});
+						maxTreeYRef.current = newMaxY;
+					}
+
+					// Test Track Timestamps
+					if (raceStartTimeRef.current > 0) {
+						const currentTime =
+							(time - raceStartTimeRef.current) / 1000;
+						if (p.y >= 402 && !quarterMileTimeRef.current) {
+							quarterMileTimeRef.current = currentTime;
+							showToast(
+								`1/4 Mile: ${currentTime.toFixed(3)}s`,
+								'INFO'
+							);
+						}
+						if (p.y >= 1609 && !mileTimeRef.current) {
+							mileTimeRef.current = currentTime;
+							showToast(
+								`1 Mile: ${currentTime.toFixed(3)}s`,
+								'INFO'
+							);
+						}
+					}
+				}
+
+				if (!o.finished && phase !== 'TEST_TRACK') {
 					if (phase === 'ONLINE_RACE') {
 						// TODO: Update from network/socket
 						// For now, opponent is static or controlled by external events
-					} else {
+					} else if (m) {
 						updateCarPhysics(
 							o,
 							m.opponent.tuning,
@@ -1680,7 +1857,7 @@ const GameCanvas: React.FC = () => {
 							weather.type === 'RAIN' ? 0.6 : 1.0
 						);
 					}
-					if (o.y >= m.distance) {
+					if (o.y >= raceDistance) {
 						o.finished = true;
 						o.finishTime = (time - raceStartTimeRef.current) / 1000;
 					}
@@ -1699,262 +1876,290 @@ const GameCanvas: React.FC = () => {
 				}
 
 				// Check Win Condition
-				if (raceStatus === 'RACING' && (p.finished || o.finished)) {
-					if (
-						p.finished &&
-						(!o.finished || p.finishTime < o.finishTime)
-					) {
-						if (raceFinishedProcessingRef.current) return;
-						raceFinishedProcessingRef.current = true;
-
-						// --- WEAR LOGIC (0-100 Scale) ---
-						const calculatedWear: Record<string, number> = {};
-						const wearBase = 0.5; // 0.5% min
-						const wearVariance = 1.0; // 1.0% variance
-						inventory.forEach((item) => {
-							if (item.equipped) {
-								const wear =
-									wearBase + Math.random() * wearVariance;
-								calculatedWear[item.instanceId] = wear;
-							}
-						});
-						setInventory((prev) =>
-							prev.map((item) => {
-								if (calculatedWear[item.instanceId]) {
-									const current =
-										item.condition !== undefined
-											? item.condition
-											: 100;
-									return {
-										...item,
-										condition: Math.max(
-											0,
-											current -
-												calculatedWear[item.instanceId]
-										),
-									};
-								}
-								return item;
-							})
-						);
-						setWearResult(calculatedWear);
-						// --------------------------------
-
-						setRaceResult('WIN');
+				if (raceStatus === 'RACING') {
+					// Test Track Finish
+					if (phase === 'TEST_TRACK' && p.finished) {
 						setRaceStatus('FINISHED');
+						setRaceResult('WIN'); // Use WIN to show results modal
+						setPlayerFinishTime(p.finishTime);
+						return;
+					}
 
-						if (phase === 'ONLINE_RACE') {
-							// Online Payout: Pot = 2 * wager using secure API
-							// Online Payout: Pot = 2 * wager using secure API
-							const onlinePayout = currentWagerRef.current * 2;
+					// Normal Race Finish
+					if (p.finished || o.finished) {
+						if (
+							p.finished &&
+							(!o.finished || p.finishTime < o.finishTime)
+						) {
+							if (raceFinishedProcessingRef.current) return;
+							raceFinishedProcessingRef.current = true;
 
-							if (token) {
-								// Use secure transaction API
-								processMoneyTransaction(
-									token,
-									'RACE_WIN',
-									onlinePayout,
-									{
-										raceType: 'ONLINE',
-										wager: currentWagerRef.current,
+							// --- WEAR LOGIC (0-100 Scale) ---
+							const calculatedWear: Record<string, number> = {};
+							const wearBase = 0.5; // 0.5% min
+							const wearVariance = 1.0; // 1.0% variance
+							inventory.forEach((item) => {
+								if (item.equipped) {
+									const wear =
+										wearBase + Math.random() * wearVariance;
+									calculatedWear[item.instanceId] = wear;
+								}
+							});
+							setInventory((prev) =>
+								prev.map((item) => {
+									if (calculatedWear[item.instanceId]) {
+										const current =
+											item.condition !== undefined
+												? item.condition
+												: 100;
+										return {
+											...item,
+											condition: Math.max(
+												0,
+												current -
+													calculatedWear[
+														item.instanceId
+													]
+											),
+										};
 									}
-								)
-									.then((result) => {
-										setMoney(result.newBalance);
-									})
-									.catch((err) => {
-										console.error(
-											'Transaction failed:',
-											err
-										);
-										showToast(
-											'Failed to process race payout',
-											'ERROR'
-										);
-										setMoney((prev) => prev + onlinePayout);
-									});
-							} else {
-								setMoney((prev) => prev + onlinePayout);
-							}
-							const newXp = xp + 200;
-							setXp(newXp);
-							saveGame({ xp: newXp }); // Immediate Save
-						} else {
-							// Calculate Wager Winnings based on difficulty
-							const difficultyMultiplier =
-								m.difficulty === 'EASY'
-									? 0.5
-									: m.difficulty === 'MEDIUM'
-									? 1.0
-									: m.difficulty === 'HARD'
-									? 2.0
-									: m.difficulty === 'EXTREME'
-									? 4.0
-									: m.difficulty === 'IMPOSSIBLE'
-									? 4.0
-									: m.difficulty === 'BOSS'
-									? 3.0
-									: 1.0;
-
-							const wagerWinnings = Math.floor(
-								currentWagerRef.current * difficultyMultiplier
+									return item;
+								})
 							);
-							const totalPayout =
-								m.payout +
-								currentWagerRef.current +
-								wagerWinnings;
+							setWearResult(calculatedWear);
+							// --------------------------------
 
-							// Use API to update money if user is logged in
-							if (token) {
-								processMoneyTransaction(
-									token,
-									'RACE_WIN',
-									totalPayout,
-									{
-										raceType: 'MISSION',
-										missionId: m.id,
-										difficulty: m.difficulty,
-										wager: currentWagerRef.current,
-									}
-								)
-									.then((result) => {
-										setMoney(result.newBalance);
-									})
-									.catch((err) => {
-										console.error(
-											'Transaction failed:',
-											err
-										);
-										showToast(
-											'Failed to process race payout',
-											'ERROR'
-										);
-										// Fallback to local update
-										setMoney((prev) => prev + totalPayout);
-									});
-							} else {
-								// Offline mode: update local state only
-								setMoney((prev) => prev + totalPayout);
-							}
-							const newXp = xp + 50;
-							setXp(newXp); // Grant XP for offline race win
-							saveGame({ xp: newXp }); // Immediate Save (Money saved by processMoneyTransaction or local update needs separate handling if not using saveGame there, but processMoneyTransaction might not save other stats)
+							setRaceResult('WIN');
+							setRaceStatus('FINISHED');
 
-							// Reward Car Logic
-							if (m.rewardCar) {
-								setGarage((prev) => {
-									return [...prev, m.rewardCar!];
-								});
+							if (phase === 'ONLINE_RACE') {
+								// Online Payout: Pot = 2 * wager using secure API
+								// Online Payout: Pot = 2 * wager using secure API
+								const onlinePayout =
+									currentWagerRef.current * 2;
 
-								// Check current state for toast (approximation)
-								const alreadyOwned = garage.some(
-									(c) => c.id === m.rewardCar!.id
-								);
-
-								if (!alreadyOwned) {
-									showToast(
-										`YOU WON A NEW CAR: ${
-											m.rewardCar!.name
-										}!`,
-										'UNLOCK'
-									);
+								if (token) {
+									// Use secure transaction API
+									processMoneyTransaction(
+										token,
+										'RACE_WIN',
+										onlinePayout,
+										{
+											raceType: 'ONLINE',
+											wager: currentWagerRef.current,
+										}
+									)
+										.then((result) => {
+											setMoney(result.newBalance);
+										})
+										.catch((err) => {
+											console.error(
+												'Transaction failed:',
+												err
+											);
+											showToast(
+												'Failed to process race payout',
+												'ERROR'
+											);
+											setMoney(
+												(prev) => prev + onlinePayout
+											);
+										});
 								} else {
-									showToast(
-										`You already own the ${
-											m.rewardCar!.name
-										}.`,
-										'INFO'
+									setMoney((prev) => prev + onlinePayout);
+								}
+								const newXp = xp + 200;
+								setXp(newXp);
+								saveGame({ xp: newXp }); // Immediate Save
+							} else {
+								// Calculate Wager Winnings based on difficulty
+								const difficultyMultiplier =
+									m.difficulty === 'EASY'
+										? 0.5
+										: m.difficulty === 'MEDIUM'
+										? 1.0
+										: m.difficulty === 'HARD'
+										? 2.0
+										: m.difficulty === 'EXTREME'
+										? 4.0
+										: m.difficulty === 'IMPOSSIBLE'
+										? 4.0
+										: m.difficulty === 'BOSS'
+										? 3.0
+										: 1.0;
+
+								const wagerWinnings = Math.floor(
+									currentWagerRef.current *
+										difficultyMultiplier
+								);
+								const totalPayout =
+									m.payout +
+									currentWagerRef.current +
+									wagerWinnings;
+
+								// Use API to update money if user is logged in
+								if (token) {
+									processMoneyTransaction(
+										token,
+										'RACE_WIN',
+										totalPayout,
+										{
+											raceType: 'MISSION',
+											missionId: m.id,
+											difficulty: m.difficulty,
+											wager: currentWagerRef.current,
+										}
+									)
+										.then((result) => {
+											setMoney(result.newBalance);
+										})
+										.catch((err) => {
+											console.error(
+												'Transaction failed:',
+												err
+											);
+											showToast(
+												'Failed to process race payout',
+												'ERROR'
+											);
+											// Fallback to local update
+											setMoney(
+												(prev) => prev + totalPayout
+											);
+										});
+								} else {
+									// Offline mode: update local state only
+									setMoney((prev) => prev + totalPayout);
+								}
+								const newXp = xp + 50;
+								setXp(newXp); // Grant XP for offline race win
+								saveGame({ xp: newXp }); // Immediate Save (Money saved by processMoneyTransaction or local update needs separate handling if not using saveGame there, but processMoneyTransaction might not save other stats)
+
+								// Reward Car Logic
+								if (m.rewardCar) {
+									setGarage((prev) => {
+										return [...prev, m.rewardCar!];
+									});
+
+									// Check current state for toast (approximation)
+									const alreadyOwned = garage.some(
+										(c) => c.id === m.rewardCar!.id
 									);
+
+									if (!alreadyOwned) {
+										showToast(
+											`YOU WON A NEW CAR: ${
+												m.rewardCar!.name
+											}!`,
+											'UNLOCK'
+										);
+									} else {
+										showToast(
+											`You already own the ${
+												m.rewardCar!.name
+											}.`,
+											'INFO'
+										);
+									}
 								}
 							}
-						}
 
-						// Underground Progression
-						if (m.difficulty === 'UNDERGROUND') {
-							setUndergroundLevel((prev) => prev + 1);
-							showToast('UNDERGROUND RANK INCREASED!', 'UNLOCK');
-						}
-
-						// Rival Progression
-						if (
-							typeof m.id === 'string' &&
-							m.id.startsWith('rival_')
-						) {
-							const rivalId = m.id.replace('rival_', '');
-							if (!defeatedRivals.includes(rivalId)) {
-								setDefeatedRivals((prev) => [...prev, rivalId]);
+							// Underground Progression
+							if (m.difficulty === 'UNDERGROUND') {
+								setUndergroundLevel((prev) => prev + 1);
 								showToast(
-									`RIVAL DEFEATED: ${m.opponent.name}`,
+									'UNDERGROUND RANK INCREASED!',
 									'UNLOCK'
 								);
 							}
-						}
 
-						// Update Best Time
-						const currentMissions = [...missions];
-						const missionIndex = currentMissions.findIndex(
-							(mis) => mis.id === m.id
-						);
-						if (missionIndex !== -1) {
-							const oldBest =
-								currentMissions[missionIndex].bestTime;
-							if (!oldBest || p.finishTime < oldBest) {
-								currentMissions[missionIndex].bestTime =
-									p.finishTime;
-								// Save Ghost Data
-								currentMissions[missionIndex].bestGhost = [
-									...currentGhostRecording.current,
-								];
-								setMissions(currentMissions);
-							}
-						}
-
-						audioRef.current.stop();
-						opponentAudioRef.current.stop();
-					} else if (
-						o.finished &&
-						(!p.finished || o.finishTime < p.finishTime)
-					) {
-						setRaceResult('LOSS');
-						setRaceStatus('FINISHED');
-
-						// Use API to deduct wager if user is logged in
-						if (token && currentWagerRef.current > 0) {
-							processMoneyTransaction(
-								token,
-								'RACE_LOSS',
-								-currentWagerRef.current, // Negative for loss
-								{
-									raceType: 'MISSION',
-									missionId: m.id,
-									wager: currentWagerRef.current,
-								}
-							)
-								.then((result) => {
-									setMoney(result.newBalance);
-								})
-								.catch((err) => {
-									console.error('Transaction failed:', err);
+							// Rival Progression
+							if (
+								typeof m.id === 'string' &&
+								m.id.startsWith('rival_')
+							) {
+								const rivalId = m.id.replace('rival_', '');
+								if (!defeatedRivals.includes(rivalId)) {
+									setDefeatedRivals((prev) => [
+										...prev,
+										rivalId,
+									]);
 									showToast(
-										'Failed to process race loss',
-										'ERROR'
+										`RIVAL DEFEATED: ${m.opponent.name}`,
+										'UNLOCK'
 									);
-									// Fallback to local update
-									setMoney((prev) =>
-										Math.max(
-											0,
-											prev - currentWagerRef.current
-										)
-									);
-								});
-						} else {
-							// Offline mode or no wager
-							setMoney((prev) =>
-								Math.max(0, prev - currentWagerRef.current)
+								}
+							}
+
+							// Update Best Time
+							const currentMissions = [...missions];
+							const missionIndex = currentMissions.findIndex(
+								(mis) => mis.id === m.id
 							);
+							if (missionIndex !== -1) {
+								const oldBest =
+									currentMissions[missionIndex].bestTime;
+								if (!oldBest || p.finishTime < oldBest) {
+									currentMissions[missionIndex].bestTime =
+										p.finishTime;
+									// Save Ghost Data
+									currentMissions[missionIndex].bestGhost = [
+										...currentGhostRecording.current,
+									];
+									setMissions(currentMissions);
+								}
+							}
+
+							audioRef.current.stop();
+							opponentAudioRef.current.stop();
+						} else if (
+							o.finished &&
+							(!p.finished || o.finishTime < p.finishTime)
+						) {
+							setRaceResult('LOSS');
+							setRaceStatus('FINISHED');
+
+							// Use API to deduct wager if user is logged in
+							if (token && currentWagerRef.current > 0) {
+								processMoneyTransaction(
+									token,
+									'RACE_LOSS',
+									-currentWagerRef.current, // Negative for loss
+									{
+										raceType: 'MISSION',
+										missionId: m.id,
+										wager: currentWagerRef.current,
+									}
+								)
+									.then((result) => {
+										setMoney(result.newBalance);
+									})
+									.catch((err) => {
+										console.error(
+											'Transaction failed:',
+											err
+										);
+										showToast(
+											'Failed to process race loss',
+											'ERROR'
+										);
+										// Fallback to local update
+										setMoney((prev) =>
+											Math.max(
+												0,
+												prev - currentWagerRef.current
+											)
+										);
+									});
+							} else {
+								// Offline mode or no wager
+								setMoney((prev) =>
+									Math.max(0, prev - currentWagerRef.current)
+								);
+							}
+							audioRef.current.stop();
+							opponentAudioRef.current.stop();
 						}
-						audioRef.current.stop();
-						opponentAudioRef.current.stop();
 					}
 				}
 
@@ -1984,11 +2189,25 @@ const GameCanvas: React.FC = () => {
 				const trackWidth = 300;
 
 				// Draw Track
-				const finishVisualY = -m.distance * PPM;
+				const finishVisualY = -raceDistance * PPM;
 				const trackStartVisualY = 200 * PPM;
 				const trackEndVisualY = finishVisualY - 500 * PPM;
 
-				const totalHeight = trackStartVisualY - trackEndVisualY;
+				// Infinite Track Logic for Test Track
+				let drawStartY = trackStartVisualY;
+				let drawEndY = trackEndVisualY;
+
+				if (phase === 'TEST_TRACK') {
+					// Draw from behind camera to well ahead
+					// Camera Y is camTransY. World Y is p.y.
+					// We want to draw from p.y - 50 to p.y + 1000
+					const worldStart = p.y - 50;
+					const worldEnd = p.y + 1000;
+					drawStartY = -worldStart * PPM;
+					drawEndY = -worldEnd * PPM;
+				}
+
+				const totalHeight = drawStartY - drawEndY;
 
 				// --- BACKGROUND RENDERING ---
 				let groundColor = '#3CB371';
@@ -2006,9 +2225,9 @@ const GameCanvas: React.FC = () => {
 				// Easier: just fill a huge area around the track that is guaranteed to cover screen
 				ctx.fillRect(
 					-canvas.width * 2,
-					-m.distance * PPM - 2000,
+					drawEndY - 2000,
 					canvas.width * 4,
-					m.distance * PPM + 4000
+					Math.abs(drawStartY - drawEndY) + 4000
 				);
 
 				// Draw Trees (Background Layer)
@@ -2067,35 +2286,40 @@ const GameCanvas: React.FC = () => {
 				ctx.fillStyle = '#333';
 				ctx.fillRect(
 					-trackWidth / 2,
-					trackEndVisualY,
+					drawEndY,
 					trackWidth,
 					totalHeight
 				);
 
-				// Start Line
-				const checkSize = 20;
-				for (let r = 0; r < 2; r++) {
-					for (let c = 0; c < trackWidth / checkSize; c++) {
-						ctx.fillStyle = (r + c) % 2 === 0 ? '#fff' : '#000';
-						ctx.fillRect(
-							-trackWidth / 2 + c * checkSize,
-							-r * checkSize,
-							checkSize,
-							checkSize
-						);
+				// Start Line (Only if near start)
+				if (p.y < 100) {
+					const checkSize = 20;
+					for (let r = 0; r < 2; r++) {
+						for (let c = 0; c < trackWidth / checkSize; c++) {
+							ctx.fillStyle = (r + c) % 2 === 0 ? '#fff' : '#000';
+							ctx.fillRect(
+								-trackWidth / 2 + c * checkSize,
+								-r * checkSize,
+								checkSize,
+								checkSize
+							);
+						}
 					}
 				}
 
-				// Finish Line
-				for (let r = 0; r < 3; r++) {
-					for (let c = 0; c < trackWidth / checkSize; c++) {
-						ctx.fillStyle = (r + c) % 2 === 0 ? '#fff' : '#000';
-						ctx.fillRect(
-							-trackWidth / 2 + c * checkSize,
-							finishVisualY + r * checkSize,
-							checkSize,
-							checkSize
-						);
+				// Finish Line (Only if NOT Test Track)
+				if (phase !== 'TEST_TRACK') {
+					const checkSize = 20;
+					for (let r = 0; r < 3; r++) {
+						for (let c = 0; c < trackWidth / checkSize; c++) {
+							ctx.fillStyle = (r + c) % 2 === 0 ? '#fff' : '#000';
+							ctx.fillRect(
+								-trackWidth / 2 + c * checkSize,
+								finishVisualY + r * checkSize,
+								checkSize,
+								checkSize
+							);
+						}
 					}
 				}
 
@@ -2104,13 +2328,19 @@ const GameCanvas: React.FC = () => {
 				ctx.strokeStyle = '#555';
 				ctx.lineWidth = 4;
 				ctx.setLineDash([40, 40]);
-				ctx.moveTo(0, trackStartVisualY);
-				ctx.lineTo(0, trackEndVisualY);
+				// Fix dash movement by offsetting based on world position
+				// We use negative offset because Y increases as we go forward
+				ctx.lineDashOffset = -(p.y * PPM) % 80;
+				ctx.moveTo(0, drawStartY);
+				ctx.lineTo(0, drawEndY);
 				ctx.stroke();
 				ctx.setLineDash([]);
+				ctx.lineDashOffset = 0;
 
 				// Draw Cars
-				drawCar(ctx, o, m.opponent.color, -trackWidth / 4);
+				if ((phase as string) !== 'TEST_TRACK') {
+					drawCar(ctx, o, m.opponent.color, -trackWidth / 4);
+				}
 				const hasSpoiler = ownedMods.some((id) =>
 					id.includes('spoiler')
 				);
@@ -2331,379 +2561,458 @@ const GameCanvas: React.FC = () => {
 			/>
 
 			{/* HUD only in Race */}
-			{(phase === 'RACE' || phase === 'ONLINE_RACE') &&
-				missionRef.current && (
-					<>
-						<Dashboard
-							carState={uiState.player}
-							tuning={playerTuning}
-							opponentState={uiState.opponent}
-							raceDistance={missionRef.current.distance}
-							missedGear={missedGearAlert}
-							settings={settings}
-						/>
-						{/* Countdown Overlay */}
-						{countdownNum !== '' && (
-							<div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none">
-								<div
-									className={`font-black italic tracking-tighter ${
-										countdownNum === 'GO!'
-											? 'text-9xl text-green-500 scale-150'
-											: typeof countdownNum === 'string'
-											? 'text-4xl text-yellow-400 animate-pulse' // Waiting text
-											: 'text-9xl text-white'
-									} transition-all duration-300 drop-shadow-2xl`}
-								>
-									{countdownNum}
-								</div>
+			{(phase === 'RACE' ||
+				phase === 'ONLINE_RACE' ||
+				phase === 'TEST_TRACK') && (
+				<>
+					<Dashboard
+						carState={uiState.player}
+						tuning={playerTuning}
+						opponentState={uiState.opponent}
+						raceDistance={
+							phase === 'TEST_TRACK'
+								? 402
+								: missionRef.current?.distance || 402
+						}
+						missedGear={missedGearAlert}
+						settings={settings}
+						isTestTrack={phase === 'TEST_TRACK'}
+					/>
+					{/* Countdown Overlay */}
+					{countdownNum !== '' && (
+						<div className="absolute inset-0 flex items-center justify-center z-50 pointer-events-none">
+							<div
+								className={`font-black italic tracking-tighter ${
+									countdownNum === 'GO!'
+										? 'text-9xl text-green-500 scale-150'
+										: typeof countdownNum === 'string'
+										? 'text-4xl text-yellow-400 animate-pulse' // Waiting text
+										: 'text-9xl text-white'
+								} transition-all duration-300 drop-shadow-2xl`}
+							>
+								{countdownNum}
 							</div>
-						)}
-					</>
-				)}
+						</div>
+					)}
+
+					{/* Test Track Back Button */}
+					{phase === 'TEST_TRACK' && (
+						<div className="absolute top-4 left-4 z-50">
+							<button
+								onClick={() => {
+									audioRef.current.stop();
+									setRaceResult(null);
+									setPhase('GARAGE');
+								}}
+								className="text-white font-pixel text-xl hover:text-gray-300 flex items-center gap-2"
+							>
+								<span>&lt;</span> BACK
+							</button>
+						</div>
+					)}
+				</>
+			)}
 
 			{/* Race Results Overlay */}
-			{(phase === 'RACE' || phase === 'ONLINE_RACE') && raceResult && (
-				<div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-[100] animate-in fade-in duration-500">
-					{/* TopBar for XP/Level Animations */}
-					<div className="absolute top-0 left-0 right-0 z-50">
-						<TopBar
-							level={level}
-							xp={xp}
-							money={money}
-							initialXp={
-								raceResult === 'WIN'
-									? xp - (missionRef.current?.xpReward || 100)
-									: xp
-							}
-							initialMoney={
-								raceResult === 'WIN'
-									? money -
-									  (missionRef.current?.payout || 0) -
-									  currentWagerRef.current
-									: raceResult === 'LOSS'
-									? money + currentWagerRef.current
-									: money
-							}
-						/>
-					</div>
-
-					<h1
-						className={`text-8xl font-black italic mb-4 ${
-							raceResult === 'WIN'
-								? 'text-green-500'
-								: 'text-red-500'
-						}`}
-					>
-						{raceResult === 'WIN' ? 'VICTORY' : 'DEFEAT'}
-					</h1>
-					<div className="text-4xl font-mono text-white mb-2">
-						TIME: {playerFinishTime.toFixed(3)}s
-					</div>
-
-					{/* Online Race Results Tabs */}
-					{phase === 'ONLINE_RACE' ? (
-						<div className="bg-gray-900/90 border-2 border-gray-700 p-6 rounded-lg mb-8 max-w-2xl w-full">
-							{/* Tabs Header */}
-							<div className="flex border-b border-gray-700 mb-4">
-								<button
-									className={`flex-1 py-2 text-center font-pixel text-sm ${
-										!showConditionTab
-											? 'text-white bg-gray-800 border-b-2 border-cyan-500'
-											: 'text-gray-400 hover:text-white'
-									}`}
-									onClick={() => setShowConditionTab(false)}
-								>
-									SCOREBOARD
-								</button>
-								<button
-									className={`flex-1 py-2 text-center font-pixel text-sm ${
-										showConditionTab
-											? 'text-white bg-gray-800 border-b-2 border-cyan-500'
-											: 'text-gray-400 hover:text-white'
-									}`}
-									onClick={() => setShowConditionTab(true)}
-								>
-									PART CONDITION
-								</button>
+			{(phase === 'RACE' ||
+				phase === 'ONLINE_RACE' ||
+				phase === 'TEST_TRACK') &&
+				raceResult && (
+					<div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-[100] animate-in fade-in duration-500">
+						{/* TopBar for XP/Level Animations (Hide in Test Track) */}
+						{phase !== 'TEST_TRACK' && (
+							<div className="absolute top-0 left-0 right-0 z-50">
+								<TopBar
+									level={level}
+									xp={xp}
+									money={money}
+									initialXp={
+										raceResult === 'WIN'
+											? xp -
+											  (missionRef.current?.xpReward ||
+													100)
+											: xp
+									}
+									initialMoney={
+										raceResult === 'WIN'
+											? money -
+											  (missionRef.current?.payout ||
+													0) -
+											  currentWagerRef.current
+											: raceResult === 'LOSS'
+											? money + currentWagerRef.current
+											: money
+									}
+								/>
 							</div>
+						)}
 
-							{/* Tab Content */}
-							{!showConditionTab ? (
-								<div className="space-y-2">
-									<div className="flex justify-between text-gray-500 text-xs px-2 mb-2">
-										<span>RACER</span>
-										<span>TIME</span>
-									</div>
-									{/* Player */}
-									<div className="flex justify-between items-center bg-black/40 p-3 border border-gray-700">
-										<div className="flex items-center gap-2">
-											<span className="text-yellow-400 font-bold">
-												1.
-											</span>
-											<span className="text-white">
-												YOU
-											</span>
-										</div>
-										<span className="font-mono text-cyan-400">
-											{playerFinishTime.toFixed(3)}s
-										</span>
-									</div>
-									{/* Opponent (Static for now, should be dynamic list) */}
-									<div
-										className={`flex justify-between items-center p-3 border border-gray-800 ${
-											opponentRef.current.finished
-												? 'bg-black/40'
-												: 'bg-black/20 opacity-50'
+						<h1
+							className={`text-8xl font-black italic mb-4 ${
+								raceResult === 'WIN'
+									? 'text-green-500'
+									: 'text-white'
+							}`}
+						>
+							{phase === 'TEST_TRACK'
+								? 'TEST COMPLETE'
+								: raceResult === 'WIN'
+								? 'VICTORY'
+								: 'DEFEAT'}
+						</h1>
+						<div className="text-4xl font-mono text-white mb-2">
+							TIME: {playerFinishTime.toFixed(3)}s
+						</div>
+
+						{/* Online Race Results Tabs */}
+						{phase === 'ONLINE_RACE' ? (
+							<div className="bg-gray-900/90 border-2 border-gray-700 p-6 rounded-lg mb-8 max-w-2xl w-full">
+								{/* Tabs Header */}
+								<div className="flex border-b border-gray-700 mb-4">
+									<button
+										className={`flex-1 py-2 text-center font-pixel text-sm ${
+											!showConditionTab
+												? 'text-white bg-gray-800 border-b-2 border-cyan-500'
+												: 'text-gray-400 hover:text-white'
 										}`}
-									>
-										<div className="flex items-center gap-2">
-											<span className="text-gray-500 font-bold">
-												2.
-											</span>
-											<span className="text-gray-300">
-												OPPONENT
-											</span>
-										</div>
-										<span className="font-mono text-gray-400">
-											{opponentRef.current.finished
-												? `${opponentRef.current.finishTime.toFixed(
-														3
-												  )}s`
-												: '--.--'}
-										</span>
-									</div>
-								</div>
-							) : (
-								<div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto pr-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
-									{inventory
-										.filter(
-											(i) =>
-												i.equipped &&
-												wearResult &&
-												wearResult[i.instanceId]
-										)
-										.map((item) => {
-											const damage =
-												wearResult![item.instanceId];
-											const current =
-												item.condition || 100;
-											const old = current + damage;
-											const getColor = (val: number) => {
-												if (val > 80)
-													return 'text-green-400';
-												if (val > 50)
-													return 'text-yellow-400';
-												return 'text-red-500';
-											};
-											return (
-												<div
-													key={item.instanceId}
-													className="flex justify-between items-center bg-black/40 p-2 rounded border border-gray-800"
-												>
-													<div className="text-sm text-gray-300 font-bold truncate w-1/2">
-														{item.name}
-													</div>
-													<div className="flex items-center gap-2 font-mono text-xs">
-														<span
-															className={getColor(
-																old
-															)}
-														>
-															{Math.round(old)}%
-														</span>
-														<span className="text-gray-600">
-															➜
-														</span>
-														<span
-															className={`${getColor(
-																current
-															)} animate-pulse font-bold`}
-														>
-															{Math.round(
-																current
-															)}
-															%
-														</span>
-														<span className="text-red-500 text-[10px]">
-															(-
-															{damage.toFixed(1)}
-															%)
-														</span>
-													</div>
-												</div>
-											);
-										})}
-								</div>
-							)}
-
-							{/* Navigation Button */}
-							<div className="mt-6 flex justify-end">
-								{!showConditionTab ? (
-									<button
-										onClick={() =>
-											setShowConditionTab(true)
-										}
-										className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 font-pixel text-sm"
-									>
-										NEXT &gt;
-									</button>
-								) : (
-									<button
 										onClick={() =>
 											setShowConditionTab(false)
 										}
-										className="bg-gray-700 hover:bg-gray-600 text-white px-6 py-2 font-pixel text-sm mr-auto"
 									>
-										&lt; BACK
+										SCOREBOARD
 									</button>
+									<button
+										className={`flex-1 py-2 text-center font-pixel text-sm ${
+											showConditionTab
+												? 'text-white bg-gray-800 border-b-2 border-cyan-500'
+												: 'text-gray-400 hover:text-white'
+										}`}
+										onClick={() =>
+											setShowConditionTab(true)
+										}
+									>
+										PART CONDITION
+									</button>
+								</div>
+
+								{/* Tab Content */}
+								{!showConditionTab ? (
+									<div className="space-y-2">
+										<div className="flex justify-between text-gray-500 text-xs px-2 mb-2">
+											<span>RACER</span>
+											<span>TIME</span>
+										</div>
+										{/* Player */}
+										<div className="flex justify-between items-center bg-black/40 p-3 border border-gray-700">
+											<div className="flex items-center gap-2">
+												<span className="text-yellow-400 font-bold">
+													1.
+												</span>
+												<span className="text-white">
+													YOU
+												</span>
+											</div>
+											<span className="font-mono text-cyan-400">
+												{playerFinishTime.toFixed(3)}s
+											</span>
+										</div>
+										{/* Opponent (Static for now, should be dynamic list) */}
+										<div
+											className={`flex justify-between items-center p-3 border border-gray-800 ${
+												opponentRef.current.finished
+													? 'bg-black/40'
+													: 'bg-black/20 opacity-50'
+											}`}
+										>
+											<div className="flex items-center gap-2">
+												<span className="text-gray-500 font-bold">
+													2.
+												</span>
+												<span className="text-gray-300">
+													OPPONENT
+												</span>
+											</div>
+											<span className="font-mono text-gray-400">
+												{opponentRef.current.finished
+													? `${opponentRef.current.finishTime.toFixed(
+															3
+													  )}s`
+													: '--.--'}
+											</span>
+										</div>
+									</div>
+								) : (
+									<div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto pr-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+										{inventory
+											.filter(
+												(i) =>
+													i.equipped &&
+													wearResult &&
+													wearResult[i.instanceId]
+											)
+											.map((item) => {
+												const damage =
+													wearResult![
+														item.instanceId
+													];
+												const current =
+													item.condition || 100;
+												const old = current + damage;
+												const getColor = (
+													val: number
+												) => {
+													if (val > 80)
+														return 'text-green-400';
+													if (val > 50)
+														return 'text-yellow-400';
+													return 'text-red-500';
+												};
+												return (
+													<div
+														key={item.instanceId}
+														className="flex justify-between items-center bg-black/40 p-2 rounded border border-gray-800"
+													>
+														<div className="text-sm text-gray-300 font-bold truncate w-1/2">
+															{item.name}
+														</div>
+														<div className="flex items-center gap-2 font-mono text-xs">
+															<span
+																className={getColor(
+																	old
+																)}
+															>
+																{Math.round(
+																	old
+																)}
+																%
+															</span>
+															<span className="text-gray-600">
+																➜
+															</span>
+															<span
+																className={`${getColor(
+																	current
+																)} animate-pulse font-bold`}
+															>
+																{Math.round(
+																	current
+																)}
+																%
+															</span>
+															<span className="text-red-500 text-[10px]">
+																(-
+																{damage.toFixed(
+																	1
+																)}
+																%)
+															</span>
+														</div>
+													</div>
+												);
+											})}
+									</div>
 								)}
-							</div>
-						</div>
-					) : (
-						// Standard Single Player Wear Results
-						wearResult &&
-						inventory.filter(
-							(i) => i.equipped && wearResult[i.instanceId]
-						).length > 0 && (
-							<div className="bg-gray-900/90 border-2 border-gray-700 p-6 rounded-lg mb-8 max-w-2xl w-full">
-								<h3 className="text-xl text-gray-400 pixel-text mb-4 text-center border-b border-gray-700 pb-2">
-									PART CONDITION
-								</h3>
-								<div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto pr-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
-									{inventory
-										.filter(
-											(i) =>
-												i.equipped &&
-												wearResult[i.instanceId]
-										)
-										.map((item) => {
-											const damage =
-												wearResult[item.instanceId]; // e.g. 0.5 (points)
-											const current =
-												item.condition || 100;
-											const old = current + damage;
 
-											// Determine color (using 50/80 scale)
-											const getColor = (val: number) => {
-												if (val > 80)
-													return 'text-green-400';
-												if (val > 50)
-													return 'text-yellow-400';
-												return 'text-red-500';
-											};
-
-											return (
-												<div
-													key={item.instanceId}
-													className="flex justify-between items-center bg-black/40 p-2 rounded border border-gray-800"
-												>
-													<div className="text-sm text-gray-300 font-bold truncate w-1/2">
-														{item.name}
-													</div>
-													<div className="flex items-center gap-2 font-mono text-xs">
-														<span
-															className={getColor(
-																old
-															)}
-														>
-															{Math.round(old)}%
-														</span>
-														<span className="text-gray-600">
-															➜
-														</span>
-														<span
-															className={`${getColor(
-																current
-															)} animate-pulse font-bold`}
-														>
-															{Math.round(
-																current
-															)}
-															%
-														</span>
-														<span className="text-red-500 text-[10px]">
-															(-
-															{damage.toFixed(1)}
-															%)
-														</span>
-													</div>
-												</div>
-											);
-										})}
+								{/* Navigation Button */}
+								<div className="mt-6 flex justify-end">
+									{!showConditionTab ? (
+										<button
+											onClick={() =>
+												setShowConditionTab(true)
+											}
+											className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 font-pixel text-sm"
+										>
+											NEXT &gt;
+										</button>
+									) : (
+										<button
+											onClick={() =>
+												setShowConditionTab(false)
+											}
+											className="bg-gray-700 hover:bg-gray-600 text-white px-6 py-2 font-pixel text-sm mr-auto"
+										>
+											&lt; BACK
+										</button>
+									)}
 								</div>
 							</div>
-						)
-					)}
-					{raceResult === 'WIN' && (
-						<div className="text-2xl text-green-400 font-mono mb-8">
-							EARNED $
-							{phase === 'ONLINE_RACE'
-								? currentWagerRef.current * 2
-								: missionRef.current?.payout}
-						</div>
-					)}
-					{raceResult === 'LOSS' && (
-						<div className="text-2xl text-red-400 font-mono mb-8">
-							{playerFinishTime - opponentFinishTime > 0
-								? '+'
-								: ''}
-							{(playerFinishTime - opponentFinishTime).toFixed(3)}
-							s
-						</div>
-					)}
-					<div className="flex gap-4 mt-8">
-						{phase !== 'ONLINE_RACE' && (
-							<button
-								onClick={() => {
-									// startMission(missionRef.current!) // Removed
-									// For now, just go back to lobby
-									audioRef.current.stop();
-									opponentAudioRef.current.stop();
-									setRaceResult(null);
-									setPhase('MAP');
-								}}
-								className="px-8 py-4 bg-white text-black font-bold text-xl hover:bg-gray-200 uppercase"
-							>
-								{raceResult === 'WIN'
-									? 'Back to Map'
-									: 'Back to Map'}
-							</button>
+						) : (
+							// Standard Single Player Wear Results
+							wearResult &&
+							inventory.filter(
+								(i) => i.equipped && wearResult[i.instanceId]
+							).length > 0 && (
+								<div className="bg-gray-900/90 border-2 border-gray-700 p-6 rounded-lg mb-8 max-w-2xl w-full">
+									<h3 className="text-xl text-gray-400 pixel-text mb-4 text-center border-b border-gray-700 pb-2">
+										PART CONDITION
+									</h3>
+									<div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto pr-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+										{inventory
+											.filter(
+												(i) =>
+													i.equipped &&
+													wearResult[i.instanceId]
+											)
+											.map((item) => {
+												const damage =
+													wearResult[item.instanceId]; // e.g. 0.5 (points)
+												const current =
+													item.condition || 100;
+												const old = current + damage;
+
+												// Determine color (using 50/80 scale)
+												const getColor = (
+													val: number
+												) => {
+													if (val > 80)
+														return 'text-green-400';
+													if (val > 50)
+														return 'text-yellow-400';
+													return 'text-red-500';
+												};
+
+												return (
+													<div
+														key={item.instanceId}
+														className="flex justify-between items-center bg-black/40 p-2 rounded border border-gray-800"
+													>
+														<div className="text-sm text-gray-300 font-bold truncate w-1/2">
+															{item.name}
+														</div>
+														<div className="flex items-center gap-2 font-mono text-xs">
+															<span
+																className={getColor(
+																	old
+																)}
+															>
+																{Math.round(
+																	old
+																)}
+																%
+															</span>
+															<span className="text-gray-600">
+																➜
+															</span>
+															<span
+																className={`${getColor(
+																	current
+																)} animate-pulse font-bold`}
+															>
+																{Math.round(
+																	current
+																)}
+																%
+															</span>
+															<span className="text-red-500 text-[10px]">
+																(-
+																{damage.toFixed(
+																	1
+																)}
+																%)
+															</span>
+														</div>
+													</div>
+												);
+											})}
+									</div>
+								</div>
+							)
 						)}
-						<button
-							onClick={() => {
-								audioRef.current.stop();
-								opponentAudioRef.current.stop();
-								setRaceResult(null);
-								if (phase === 'ONLINE_RACE') {
-									// Leave race (and delete if host/last)
-									fetch(
-										getFullUrl(
-											'/api/race',
-											`partyId=${party?.id}`
-										),
-										{
-											method: 'DELETE',
-											headers: {
-												Authorization: `Bearer ${token}`,
-											},
-										}
-									).then(() => {
-										setPhase('MAP');
-										setRaceStatus('IDLE');
-									});
-								} else {
-									setPhase('MISSION_SELECT');
-								}
-							}}
-							className="px-8 py-4 bg-gray-800 text-white font-bold text-xl hover:bg-gray-700 uppercase"
-						>
-							{phase === 'ONLINE_RACE'
-								? 'Back to Lobby'
-								: 'Back to Menu'}
-						</button>
+						{raceResult === 'WIN' && (
+							<div className="text-2xl text-green-400 font-mono mb-8">
+								EARNED $
+								{phase === 'ONLINE_RACE'
+									? currentWagerRef.current * 2
+									: missionRef.current?.payout}
+							</div>
+						)}
+						{raceResult === 'LOSS' && (
+							<div className="text-2xl text-red-400 font-mono mb-8">
+								{playerFinishTime - opponentFinishTime > 0
+									? '+'
+									: ''}
+								{(
+									playerFinishTime - opponentFinishTime
+								).toFixed(3)}
+								s
+							</div>
+						)}
+						<div className="flex gap-4 mt-8">
+							{phase === 'TEST_TRACK' ? (
+								<>
+									<button
+										onClick={startTestTrack}
+										className="px-8 py-4 bg-green-600 text-white font-bold text-xl hover:bg-green-500 uppercase"
+									>
+										AGAIN
+									</button>
+									<button
+										onClick={() => {
+											audioRef.current.stop();
+											setRaceResult(null);
+											setPhase('GARAGE');
+										}}
+										className="px-8 py-4 bg-gray-800 text-white font-bold text-xl hover:bg-gray-700 uppercase"
+									>
+										Back to Garage
+									</button>
+								</>
+							) : (
+								<>
+									{phase !== 'ONLINE_RACE' && (
+										<button
+											onClick={() => {
+												// startMission(missionRef.current!) // Removed
+												// For now, just go back to lobby
+												audioRef.current.stop();
+												opponentAudioRef.current.stop();
+												setRaceResult(null);
+												setPhase('MAP');
+											}}
+											className="px-8 py-4 bg-white text-black font-bold text-xl hover:bg-gray-200 uppercase"
+										>
+											{raceResult === 'WIN'
+												? 'Back to Map'
+												: 'Back to Map'}
+										</button>
+									)}
+									<button
+										onClick={() => {
+											audioRef.current.stop();
+											opponentAudioRef.current.stop();
+											setRaceResult(null);
+											if (phase === 'ONLINE_RACE') {
+												// Leave race (and delete if host/last)
+												fetch(
+													getFullUrl(
+														'/api/race',
+														`partyId=${party?.id}`
+													),
+													{
+														method: 'DELETE',
+														headers: {
+															Authorization: `Bearer ${token}`,
+														},
+													}
+												).then(() => {
+													setPhase('MAP');
+													setRaceStatus('IDLE');
+												});
+											} else {
+												setPhase('MISSION_SELECT');
+											}
+										}}
+										className="px-8 py-4 bg-gray-800 text-white font-bold text-xl hover:bg-gray-700 uppercase"
+									>
+										{phase === 'ONLINE_RACE'
+											? 'Back to Lobby'
+											: 'Back to Menu'}
+									</button>
+								</>
+							)}
+						</div>
 					</div>
-				</div>
-			)}
+				)}
 
 			{/* Menu UI */}
 			{(phase === 'MENU' ||
@@ -2758,6 +3067,8 @@ const GameCanvas: React.FC = () => {
 							junkyardCars,
 							onBuyJunkyardCar: buyJunkyardCar,
 							onRefreshJunkyard: refreshJunkyard,
+							junkyardParts,
+							onBuyJunkyardPart: buyJunkyardPart,
 							onRestoreCar: restoreCar,
 							onScrapCar: scrapCar,
 							missionSelectTab,
@@ -2775,6 +3086,7 @@ const GameCanvas: React.FC = () => {
 							onBuyShopItem: buyShopItem,
 							onRefreshDailyShop: refreshDailyShop,
 							dailyShopItems,
+							onTestTrack: startTestTrack,
 							onManualTuningChange: (tuning) => {
 								if (garage[currentCarIndex]) {
 									const updatedCar = {

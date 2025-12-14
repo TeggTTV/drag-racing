@@ -87,6 +87,9 @@ export const GameMenu = () => {
 		setUserInventory,
 		onMerge,
 		saveGame,
+		onTestTrack,
+		junkyardParts,
+		onBuyJunkyardPart,
 	} = useGame();
 
 	const { play } = useSound();
@@ -768,6 +771,8 @@ export const GameMenu = () => {
 							onBuyCar={onBuyJunkyardCar}
 							onBack={() => setPhase('MAP')}
 							onRefresh={onRefreshJunkyard}
+							parts={junkyardParts}
+							onBuyPart={onBuyJunkyardPart}
 						/>
 					)}
 
@@ -855,6 +860,7 @@ export const GameMenu = () => {
 							onRepairAll={handleRepairAll}
 							onMergeAll={handleMergeAll}
 							onRemoveAll={handleRemoveAll}
+							onTestTrack={onTestTrack}
 						/>
 					)}
 				</div>

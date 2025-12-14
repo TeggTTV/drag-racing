@@ -9,6 +9,7 @@ interface DashboardProps {
 	missedGear?: boolean;
 	settings?: GameSettings;
 	inputs?: any; // InputState
+	isTestTrack?: boolean;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({
@@ -19,6 +20,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 	missedGear,
 	settings,
 	inputs,
+	isTestTrack,
 }) => {
 	const speedKmh = Math.floor(carState.velocity * 3.6);
 	const rpm = Math.round(carState.rpm);
@@ -50,33 +52,35 @@ const Dashboard: React.FC<DashboardProps> = ({
 
 	return (
 		<div className="absolute top-0 left-0 w-full h-full pointer-events-none flex flex-col justify-between p-4 z-50">
-			{/* Race Progress Top Bar */}
-			<div className="w-full max-w-2xl mx-auto mt-4 bg-gray-900/90 rounded-full h-6 border-2 border-white/20 relative">
-				{/* Finish Line Marker */}
-				<div className="absolute right-0 top-0 h-full w-4 bg-white/10 z-0 flex items-center justify-center border-l border-white/30"></div>
+			{/* Race Progress Top Bar - Hidden in Test Track */}
+			{!isTestTrack && (
+				<div className="w-full max-w-2xl mx-auto mt-4 bg-gray-900/90 rounded-full h-6 border-2 border-white/20 relative">
+					{/* Finish Line Marker */}
+					<div className="absolute right-0 top-0 h-full w-4 bg-white/10 z-0 flex items-center justify-center border-l border-white/30"></div>
 
-				{/* Opponent Dot */}
-				{opponentState && (
+					{/* Opponent Dot */}
+					{opponentState && (
+						<div
+							className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-red-600 rounded-full shadow-[0_0_10px_rgba(220,38,38,1)] border border-white/50 z-10 transition-none"
+							style={{ left: `calc(${oppProgress}% - 8px)` }}
+						></div>
+					)}
+
+					{/* Player Dot */}
 					<div
-						className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-red-600 rounded-full shadow-[0_0_10px_rgba(220,38,38,1)] border border-white/50 z-10 transition-none"
-						style={{ left: `calc(${oppProgress}% - 8px)` }}
+						className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-blue-500 border-2 border-white rounded-full shadow-[0_0_15px_rgba(59,130,246,1)] z-20 transition-none"
+						style={{ left: `calc(${userProgress}% - 10px)` }}
 					></div>
-				)}
 
-				{/* Player Dot */}
-				<div
-					className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-blue-500 border-2 border-white rounded-full shadow-[0_0_15px_rgba(59,130,246,1)] z-20 transition-none"
-					style={{ left: `calc(${userProgress}% - 10px)` }}
-				></div>
-
-				{/* Labels */}
-				<div className="absolute -bottom-6 left-0 text-[10px] text-gray-400 font-mono">
-					START
+					{/* Labels */}
+					<div className="absolute -bottom-6 left-0 text-[10px] text-gray-400 font-mono">
+						START
+					</div>
+					<div className="absolute -bottom-6 right-0 text-[10px] text-gray-400 font-mono">
+						FINISH
+					</div>
 				</div>
-				<div className="absolute -bottom-6 right-0 text-[10px] text-gray-400 font-mono">
-					FINISH
-				</div>
-			</div>
+			)}
 
 			{/* Bottom Cluster - More compact */}
 			<div className="flex justify-center items-end w-full mb-2">

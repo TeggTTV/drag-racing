@@ -52,6 +52,7 @@ interface GarageProps {
 	onRepairAll: (items: InventoryItem[], cost: number) => void;
 	onMergeAll: () => void;
 	onRemoveAll: () => void;
+	onTestTrack: () => void;
 }
 
 export const Garage: React.FC<GarageProps> = ({
@@ -87,6 +88,7 @@ export const Garage: React.FC<GarageProps> = ({
 	onRepairAll,
 	onMergeAll,
 	onRemoveAll,
+	onTestTrack,
 }) => {
 	const [activeTab, setActiveTab] = useState<'TUNING' | 'DYNO' | 'CARS'>(
 		'TUNING'
@@ -216,6 +218,15 @@ export const Garage: React.FC<GarageProps> = ({
 							previousData={previousDynoHistory}
 						/>
 					</div>
+
+					{/* Test Track Button */}
+					<button
+						onClick={onTestTrack}
+						disabled
+						className="w-full py-3 mb-6 bg-indigo-900/80 hover:bg-indigo-700 text-indigo-100 font-bold pixel-btn border border-indigo-500/50 flex items-center justify-center gap-2"
+					>
+						<span>🏁</span> TEST & TUNE TRACK
+					</button>
 
 					<div className="flex gap-2 mb-4">
 						<button

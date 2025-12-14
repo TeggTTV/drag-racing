@@ -10,7 +10,8 @@ export type GamePhase =
 	| 'DEALERSHIP'
 	| 'SHOP'
 	| 'AUCTION'
-	| 'ONLINE_RACE';
+	| 'ONLINE_RACE'
+	| 'TEST_TRACK';
 
 export interface InputState {
 	gas: boolean;
@@ -156,6 +157,10 @@ export interface SavedTune {
 }
 
 export interface JunkyardCar extends SavedTune {
+	price: number;
+}
+
+export interface JunkyardItem extends InventoryItem {
 	price: number;
 }
 
