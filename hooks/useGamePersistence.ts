@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Mission, TuningState, SavedTune, DailyChallenge } from '../types';
+import {
+	Mission,
+	TuningState,
+	SavedTune,
+	DailyChallenge,
+	LoginStreak,
+} from '../types';
 import { MISSIONS, BASE_TUNING } from '../constants';
 import { generateDailyChallenges } from '../utils/dailyChallengeUtils';
 import { useAuth } from '../contexts/AuthContext';
@@ -42,7 +48,9 @@ export const useGamePersistence = (
 	setInventory: (items: any[]) => void,
 	phase: string, // Add phase to control sync behavior
 	settings: any, // GameSettings
-	setSettings: (s: any) => void
+	setSettings: (s: any) => void,
+	loginStreak: LoginStreak,
+	setLoginStreak: (streak: LoginStreak) => void
 ) => {
 	const [loaded, setLoaded] = useState(false);
 	const { token, user } = useAuth();
@@ -161,6 +169,14 @@ export const useGamePersistence = (
 				);
 				if (savedSettings && savedSettings !== 'undefined') {
 					setSettings(JSON.parse(savedSettings));
+				}
+
+				// Login Streak
+				const savedLoginStreak = localStorage.getItem(
+					'shift_drift_loginStreak'
+				);
+				if (savedLoginStreak && savedLoginStreak !== 'undefined') {
+					setLoginStreak(JSON.parse(savedLoginStreak));
 				}
 
 				// Garage & Current Car Logic
@@ -339,6 +355,9 @@ export const useGamePersistence = (
 					// Set Settings
 					if (data.settings) setSettings(data.settings);
 
+					// Set Login Streak
+					if (data.loginStreak) setLoginStreak(data.loginStreak);
+
 					// Initialize Daily Challenges (Client-side generation for now, could be server-side later)
 					const newChallenges = generateDailyChallenges();
 					setDailyChallenges(newChallenges);
@@ -438,6 +457,14 @@ export const useGamePersistence = (
 		localStorage.setItem('shift_drift_settings', JSON.stringify(settings));
 	}, [settings, loaded, user]);
 
+	useEffect(() => {
+		if (!loaded || user) return;
+		localStorage.setItem(
+			'shift_drift_loginStreak',
+			JSON.stringify(loginStreak)
+		);
+	}, [loginStreak, loaded, user]);
+
 	// --- Server Sync Logic ---
 	// SECURITY NOTE: Money is NOT synced automatically from localStorage to prevent manipulation
 	// Money updates should only happen via secure API endpoints when earned through legitimate gameplay
@@ -511,8 +538,9 @@ export const useGamePersistence = (
 			level,
 			xp,
 			settings,
+			loginStreak,
 		}),
-		[garage, inventory, level, xp, settings]
+		[garage, inventory, level, xp, settings, loginStreak]
 	);
 
 	// Immediate Save Function
@@ -525,6 +553,7 @@ export const useGamePersistence = (
 				xp: number;
 				money: number;
 				settings: any;
+				loginStreak: LoginStreak;
 			}>
 		) => {
 			if (!token || !user) return;
@@ -535,6 +564,7 @@ export const useGamePersistence = (
 				level,
 				xp,
 				settings,
+				loginStreak,
 				// money, // DO NOT include money by default. It overwrites server state with potentially stale local state.
 				...overrides,
 			};
@@ -557,7 +587,17 @@ export const useGamePersistence = (
 				console.error('Failed to save game', e);
 			}
 		},
-		[garage, inventory, level, xp, money, token, user]
+		[
+			garage,
+			inventory,
+			level,
+			xp,
+			money,
+			token,
+			user,
+			settings,
+			loginStreak,
+		]
 	);
 
 	// Periodic Sync (Debounced) - Only when NOT racing
@@ -590,6 +630,7 @@ export const useGamePersistence = (
 							level,
 							xp,
 							settings,
+							loginStreak,
 						}),
 					}
 				);

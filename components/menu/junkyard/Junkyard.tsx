@@ -127,6 +127,7 @@ const Junkyard: React.FC<JunkyardProps> = ({
 									? 'bg-orange-900 border-orange-500 text-orange-100'
 									: 'bg-gray-800 text-gray-400'
 							}`}
+							disabled
 						>
 							USED PARTS
 						</button>

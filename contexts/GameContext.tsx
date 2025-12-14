@@ -5,6 +5,7 @@ import {
 	InventoryItem,
 	JunkyardCar,
 	JunkyardItem,
+	LoginStreak,
 	Mission,
 	ModNode,
 	Rival,
@@ -80,6 +81,8 @@ export interface GameContextType {
 	onTestTrack: () => void;
 	settings: GameSettings;
 	setSettings: React.Dispatch<React.SetStateAction<GameSettings>>;
+	showDailyRewards: boolean;
+	setShowDailyRewards: (show: boolean) => void;
 	saveGame: (
 		overrides?: Partial<{
 			garage: SavedTune[];
@@ -87,6 +90,7 @@ export interface GameContextType {
 			level: number;
 			xp: number;
 			money: number;
+			loginStreak: LoginStreak;
 		}>
 	) => Promise<void>;
 }

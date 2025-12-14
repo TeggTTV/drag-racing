@@ -21,9 +21,10 @@ import { TestTrackUtils } from '../utils/TestTrackUtils';
 import { TopBar } from '@/components/menu/shared/TopBar';
 import Dashboard from './Dashboard';
 import { SoundProvider } from '../contexts/SoundContext';
+import { DailyRewardsModal } from './menu/DailyRewardsModal';
 import { GameProvider } from '../contexts/GameContext';
 import { useToast } from '../contexts/ToastContext';
-import { useParty } from '../contexts/PartyContext'; // Import useParty
+import { useParty } from '../contexts/PartyContext';
 import { useAuth } from '../contexts/AuthContext';
 import { processMoneyTransaction } from '../utils/transactions';
 import {
@@ -49,8 +50,9 @@ import {
 	JunkyardItem,
 	InventoryItem,
 	Season,
+	LoginStreak,
 } from '../types';
-import { GameSettings } from '../contexts/GameContext'; // Import new type
+import { GameSettings } from '../contexts/GameContext';
 import { GameMenu } from './GameMenu';
 
 const PPM = 40; // Pixels Per Meter - Visual Scale
@@ -175,6 +177,16 @@ const GameCanvas: React.FC = () => {
 	const [xp, setXp] = useState(0);
 	const [level, setLevel] = useState(1);
 
+	// Daily Rewards State
+	const [loginStreak, setLoginStreak] = useState<LoginStreak>({
+		currentStreak: 0,
+		lastLoginDate: '',
+		longestStreak: 0,
+		totalLogins: 0,
+		rewardsClaimed: [],
+	});
+	const [showDailyRewards, setShowDailyRewards] = useState(false);
+
 	// Persistence Hook
 	const {
 		loaded: isGameLoaded,
@@ -213,7 +225,9 @@ const GameCanvas: React.FC = () => {
 		setInventory,
 		phase,
 		settings,
-		setSettings
+		setSettings,
+		loginStreak,
+		setLoginStreak
 	);
 
 	const setMoney = useCallback(
@@ -1657,6 +1671,128 @@ const GameCanvas: React.FC = () => {
 		setBgTrees(newTrees);
 		maxTreeYRef.current = 500;
 	}, [effectiveTuning]);
+
+	// Daily Rewards Handler
+	const handleClaimDailyReward = useCallback(async () => {
+		const { getRewardForDay } = require('../constants/DailyRewards');
+		const currentDay = loginStreak.currentStreak;
+		const reward = getRewardForDay(currentDay);
+
+		// Apply reward
+		switch (reward.type) {
+			case 'MONEY':
+				// Use secure transaction system for online users
+				if (token) {
+					try {
+						const result = await processMoneyTransaction(
+							token,
+							'DAILY_REWARD',
+							reward.amount || 0,
+							{ day: currentDay }
+						);
+						setMoney(result.newBalance);
+						showToast(
+							`Claimed $${reward.amount?.toLocaleString()}!`,
+							'SUCCESS'
+						);
+					} catch (e) {
+						console.error('Failed to process daily reward:', e);
+						showToast('Failed to claim reward', 'ERROR');
+						return; // Don't mark as claimed if transaction failed
+					}
+				} else {
+					// Offline users: update locally
+					setRawMoney((prev) => prev + (reward.amount || 0));
+					notifyMoneyUpdate();
+					showToast(
+						`Claimed $${reward.amount?.toLocaleString()}!`,
+						'SUCCESS'
+					);
+				}
+				break;
+			case 'XP':
+				setXp((prev) => prev + (reward.amount || 0));
+				showToast(`Claimed ${reward.amount} XP!`, 'SUCCESS');
+				break;
+			case 'ITEM':
+				// Generate random item of specified rarity
+				const newItem = ItemGenerator.generateItem(
+					reward.itemRarity || 'COMMON'
+				);
+				const newInventory = [...inventory, newItem];
+				setInventory(newInventory);
+				showToast(`Claimed ${reward.itemRarity} Part!`, 'SUCCESS');
+				// Save inventory for online users
+				if (token) {
+					saveGame({ inventory: newInventory });
+				}
+				break;
+			case 'CRATE':
+				// TODO: Implement crate system
+				showToast(`Claimed ${reward.crateType} Crate!`, 'SUCCESS');
+				break;
+		}
+
+		// Update streak
+		const updatedStreak = {
+			...loginStreak,
+			rewardsClaimed: [...loginStreak.rewardsClaimed, currentDay],
+		};
+		setLoginStreak(updatedStreak);
+
+		// Save game with updated streak
+		saveGame({ loginStreak: updatedStreak });
+	}, [
+		loginStreak,
+		notifyMoneyUpdate,
+		saveGame,
+		showToast,
+		token,
+		inventory,
+		setMoney,
+	]);
+
+	// Check Login Streak on Load
+	useEffect(() => {
+		if (!isGameLoaded) return;
+
+		const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+		const lastLogin = loginStreak.lastLoginDate;
+
+		if (lastLogin === today) {
+			// Already logged in today
+			return;
+		}
+
+		const yesterday = new Date();
+		yesterday.setDate(yesterday.getDate() - 1);
+		const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+		let newStreak = 1;
+		if (lastLogin === yesterdayStr) {
+			// Consecutive day
+			newStreak = loginStreak.currentStreak + 1;
+		} else if (lastLogin) {
+			// Streak broken
+			newStreak = 1;
+		}
+
+		const newLoginStreak: LoginStreak = {
+			currentStreak: newStreak,
+			lastLoginDate: today,
+			longestStreak: Math.max(loginStreak.longestStreak, newStreak),
+			totalLogins: loginStreak.totalLogins + 1,
+			rewardsClaimed: loginStreak.rewardsClaimed,
+		};
+
+		setLoginStreak(newLoginStreak);
+		saveGame({ loginStreak: newLoginStreak });
+
+		// Show rewards modal
+		setTimeout(() => {
+			setShowDailyRewards(true);
+		}, 1000); // Delay to let game load
+	}, [isGameLoaded, loginStreak, saveGame]);
 
 	// --- Main Loop ---
 	useEffect(() => {
@@ -3111,6 +3247,15 @@ const GameCanvas: React.FC = () => {
 						<GameMenu />
 					</GameProvider>
 				</SoundProvider>
+			)}
+
+			{/* Daily Rewards Modal */}
+			{showDailyRewards && (
+				<DailyRewardsModal
+					loginStreak={loginStreak}
+					onClaim={handleClaimDailyReward}
+					onClose={() => setShowDailyRewards(false)}
+				/>
 			)}
 		</div>
 	);

@@ -7,7 +7,8 @@ type TransactionType =
 	| 'ITEM_PURCHASE'
 	| 'SHOP_PURCHASE'
 	| 'JUNKYARD_PURCHASE'
-	| 'REPAIR_COST';
+	| 'REPAIR_COST'
+	| 'DAILY_REWARD';
 
 interface TransactionResult {
 	success: boolean;

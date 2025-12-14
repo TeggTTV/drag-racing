@@ -23,9 +23,10 @@ model User {
   xp       Int    @default(0)
 
   // Game Data
-  inventory Json[]
-  garage    Json[]
-  settings  Json?
+  inventory   Json[]
+  garage      Json[]
+  settings    Json?
+  loginStreak Json?
 
   // Social
   friendCode             String   @unique @default(cuid())

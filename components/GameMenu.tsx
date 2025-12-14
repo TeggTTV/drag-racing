@@ -90,6 +90,7 @@ export const GameMenu = () => {
 		onTestTrack,
 		junkyardParts,
 		onBuyJunkyardPart,
+		setShowDailyRewards,
 	} = useGame();
 
 	const { play } = useSound();
@@ -731,7 +732,18 @@ export const GameMenu = () => {
 								>
 									AUCTION
 								</button>
-
+								{/* <button
+									onClick={() => {
+										setShowDailyRewards(true);
+									}}
+									className="pixel-btn text-center py-4 text-lg bg-green-900 border-green-700 text-green-400 hover:bg-green-800"
+									style={{
+										backgroundColor: '#14532d', // green-900
+										borderColor: '#15803d', // green-700
+									}}
+								>
+									REWARDS
+								</button> */}
 								<button
 									onClick={() => setShowSettings(true)}
 									className="pixel-btn text-center py-2 text-lg bg-gray-800 border-gray-600 text-slate-400"

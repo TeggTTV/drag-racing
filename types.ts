@@ -97,11 +97,24 @@ export type ModType =
 	| 'COOLING'
 	| 'AERO'
 	| 'SUSPENSION'
-	| 'VISUAL'
-	| 'PAINT'
-	| 'BRAKES'
-	| 'INTERIOR'
-	| 'ELECTRONICS';
+	| 'VISUAL';
+
+export interface DailyReward {
+	day: number;
+	type: 'MONEY' | 'XP' | 'ITEM' | 'CRATE';
+	amount?: number;
+	itemId?: string;
+	itemRarity?: ItemRarity;
+	crateType?: 'BASIC' | 'PREMIUM' | 'ELITE';
+}
+
+export interface LoginStreak {
+	currentStreak: number;
+	lastLoginDate: string; // ISO date string
+	longestStreak: number;
+	totalLogins: number;
+	rewardsClaimed: number[];
+}
 
 export interface InventoryItem {
 	instanceId: string; // Unique UUID
