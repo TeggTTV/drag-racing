@@ -123,7 +123,8 @@ export const Garage: React.FC<GarageProps> = ({
 			previewOwnedMods,
 			disabledMods,
 			modSettings,
-			garage[currentCarIndex]?.installedItems || []
+			garage[currentCarIndex]?.installedItems || [],
+			garage[currentCarIndex]?.masteryLevel || 0
 		);
 	}, [
 		hoveredMod,
@@ -355,7 +356,8 @@ export const Garage: React.FC<GarageProps> = ({
 									car.ownedMods,
 									car.disabledMods,
 									car.modSettings,
-									car.installedItems
+									car.installedItems,
+									car.masteryLevel || 0
 								);
 								const rating =
 									calculatePerformanceRating(tuning);
@@ -421,7 +423,33 @@ export const Garage: React.FC<GarageProps> = ({
 													className={`font-bold text-sm ${rarityColor}`}
 												>
 													{car.name}
+													{/* Master Title */}
+													{(car.masteryLevel || 0) >=
+														50 && (
+														<span className="ml-2 text-[10px] text-yellow-500 font-bold border border-yellow-500/30 px-1 rounded bg-yellow-900/20">
+															MASTER
+														</span>
+													)}
 												</div>
+												{/* Mastery Progress Bar */}
+												{(car.masteryLevel || 0) >
+													0 && (
+													<div className="w-full h-1 bg-gray-800 rounded-full mt-1 overflow-hidden">
+														<div
+															className="h-full bg-indigo-500"
+															style={{
+																width: `${
+																	((car.masteryXP ||
+																		0) /
+																		((car.masteryLevel ||
+																			1) *
+																			1000)) *
+																	100
+																}%`,
+															}}
+														/>
+													</div>
+												)}
 											</div>
 											<div className="text-right">
 												<div className="text-xs text-gray-400">

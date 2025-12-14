@@ -742,7 +742,7 @@ export const GameMenu = () => {
 										borderColor: '#15803d', // green-700
 									}}
 								>
-									REWARDS
+									DAILY REWARDS
 								</button> */}
 								<button
 									onClick={() => setShowSettings(true)}

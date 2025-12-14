@@ -16,7 +16,8 @@ export class CarBuilder {
 		ownedModIds: string[],
 		disabledModIds: string[] = [],
 		modSettings: Record<string, Record<string, number>> = {},
-		installedItems: InventoryItem[] = []
+		installedItems: InventoryItem[] = [],
+		masteryLevel: number = 0
 	): TuningState {
 		// Start with a deep copy of the base tuning to avoid mutating the original
 		let finalTuning: TuningState = JSON.parse(JSON.stringify(baseTuning));
@@ -41,6 +42,14 @@ export class CarBuilder {
 		installedItems.forEach((item) => {
 			finalTuning = this.applyItemStats(finalTuning, item);
 		});
+
+		// Apply Mastery Perks
+		if (masteryLevel > 0) {
+			// +1% Torque and Grip per 10 levels
+			const perkMultiplier = 1 + Math.floor(masteryLevel / 10) * 0.01;
+			finalTuning.maxTorque *= perkMultiplier;
+			finalTuning.tireGrip *= perkMultiplier;
+		}
 
 		return finalTuning;
 	}

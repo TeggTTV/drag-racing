@@ -59,6 +59,90 @@ const PPM = 40; // Pixels Per Meter - Visual Scale
 
 type RaceStatus = 'IDLE' | 'COUNTDOWN' | 'RACING' | 'FINISHED';
 
+const MasteryLevelUp: React.FC<{
+	initialLevel: number;
+	initialXP: number;
+	xpGain: number;
+}> = ({ initialLevel, initialXP, xpGain }) => {
+	const [level, setLevel] = useState(initialLevel);
+	const [xp, setXp] = useState(initialXP);
+	const [showGain, setShowGain] = useState(false);
+
+	useEffect(() => {
+		// 1. Initial Delay (1s)
+		const startDelay = setTimeout(() => {
+			setShowGain(true);
+
+			// Calculate targets
+			let currentLevel = initialLevel;
+			let currentXP = initialXP;
+			let remainingGain = xpGain;
+
+			const animate = () => {
+				const threshold = (currentLevel + 1) * 1000;
+				const space = threshold - currentXP;
+
+				if (remainingGain >= space) {
+					// Level Up
+					setXp(threshold); // Fill bar
+					setTimeout(() => {
+						// Reset and increment
+						remainingGain -= space;
+						currentLevel++;
+						currentXP = 0;
+						setLevel(currentLevel);
+						setXp(0);
+
+						// Continue animation if more gain
+						if (remainingGain > 0) {
+							setTimeout(animate, 500);
+						}
+					}, 1000); // Wait at full bar
+				} else {
+					// Simple fill
+					setXp(currentXP + remainingGain);
+				}
+			};
+
+			animate();
+		}, 1000);
+
+		return () => clearTimeout(startDelay);
+	}, [initialLevel, initialXP, xpGain]);
+
+	const threshold = (level + 1) * 1000;
+	const progress = Math.min(100, (xp / threshold) * 100);
+
+	return (
+		<div className="bg-gray-900/80 p-4 rounded border border-indigo-500/30 mb-4 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+			<div className="flex justify-between items-end mb-2">
+				<div className="text-indigo-400 font-bold pixel-text text-sm">
+					CAR MASTERY
+				</div>
+				<div className="text-white font-mono text-xs transition-all duration-300">
+					LVL {level}
+				</div>
+			</div>
+			<div className="w-full h-3 bg-gray-800 rounded-full overflow-hidden relative">
+				<div
+					className="h-full bg-indigo-500 transition-all duration-1000 ease-out"
+					style={{ width: `${progress}%` }}
+				/>
+				<div className="absolute inset-0 flex items-center justify-center text-[8px] text-white font-bold shadow-black drop-shadow-md">
+					{Math.floor(xp)} / {threshold} XP
+				</div>
+			</div>
+			<div
+				className={`text-center text-xs text-green-400 mt-1 font-mono transition-opacity duration-500 ${
+					showGain ? 'opacity-100' : 'opacity-0'
+				}`}
+			>
+				+{xpGain} XP
+			</div>
+		</div>
+	);
+};
+
 const GameCanvas: React.FC = () => {
 	const { showToast } = useToast();
 	const music = useMusic();
@@ -135,6 +219,11 @@ const GameCanvas: React.FC = () => {
 		null
 	);
 	const [showConditionTab, setShowConditionTab] = useState(false);
+	const [lastRaceMastery, setLastRaceMastery] = useState<{
+		level: number;
+		xp: number;
+		gain: number;
+	} | null>(null);
 	const [inventory, setInventory] = useState<InventoryItem[]>([]);
 
 	// Dyno History State
@@ -2065,6 +2154,82 @@ const GameCanvas: React.FC = () => {
 							setWearResult(calculatedWear);
 							// --------------------------------
 
+							// --- Mastery XP Logic ---
+							if (garage[currentCarIndex]) {
+								const car = garage[currentCarIndex];
+								let mLevel = car.masteryLevel || 0;
+								let mXP = car.masteryXP || 0;
+
+								// Dynamic XP Calculation
+								let xpGain = 100;
+								if (phase === 'ONLINE_RACE') {
+									xpGain = 500;
+								} else if (missionRef.current) {
+									switch (missionRef.current.difficulty) {
+										case 'EASY':
+											xpGain = 100;
+											break;
+										case 'MEDIUM':
+											xpGain = 150;
+											break;
+										case 'HARD':
+											xpGain = 200;
+											break;
+										case 'EXTREME':
+											xpGain = 300;
+											break;
+										case 'IMPOSSIBLE':
+											xpGain = 400;
+											break;
+										case 'BOSS':
+											xpGain = 500;
+											break;
+										case 'UNDERGROUND':
+											xpGain = 300;
+											break;
+										default:
+											xpGain = 100;
+									}
+								}
+
+								// Store for animation
+								setLastRaceMastery({
+									level: mLevel,
+									xp: mXP,
+									gain: xpGain,
+								});
+
+								mXP += xpGain;
+
+								// Level Up Logic
+								let nextLevelThreshold = (mLevel + 1) * 1000;
+								while (mXP >= nextLevelThreshold) {
+									mXP -= nextLevelThreshold;
+									mLevel++;
+									nextLevelThreshold = (mLevel + 1) * 1000;
+									showToast(
+										`Car Mastery Level Up! LVL ${mLevel}`,
+										'UNLOCK'
+									);
+									audioRef.current.playUISound('levelup');
+								}
+
+								// Update Car
+								const updatedCar = {
+									...car,
+									masteryLevel: mLevel,
+									masteryXP: mXP,
+								};
+
+								// Update Garage
+								setGarage((prev) => {
+									const newGarage = [...prev];
+									newGarage[currentCarIndex] = updatedCar;
+									return newGarage;
+								});
+							}
+							// ------------------------
+
 							setRaceResult('WIN');
 							setRaceStatus('FINISHED');
 
@@ -3062,6 +3227,16 @@ const GameCanvas: React.FC = () => {
 									: missionRef.current?.payout}
 							</div>
 						)}
+						{/* Mastery Animation */}
+						{lastRaceMastery && (
+							<div className="w-full max-w-lg mb-4">
+								<MasteryLevelUp
+									initialLevel={lastRaceMastery.level}
+									initialXP={lastRaceMastery.xp}
+									xpGain={lastRaceMastery.gain}
+								/>
+							</div>
+						)}
 						{raceResult === 'LOSS' && (
 							<div className="text-2xl text-red-400 font-mono mb-8">
 								{playerFinishTime - opponentFinishTime > 0
@@ -3098,18 +3273,18 @@ const GameCanvas: React.FC = () => {
 									{phase !== 'ONLINE_RACE' && (
 										<button
 											onClick={() => {
-												// startMission(missionRef.current!) // Removed
-												// For now, just go back to lobby
-												audioRef.current.stop();
-												opponentAudioRef.current.stop();
-												setRaceResult(null);
-												setPhase('MAP');
+												if (missionRef.current) {
+													startMission(
+														missionRef.current
+													);
+												} else {
+													// Fallback
+													setPhase('MAP');
+												}
 											}}
-											className="px-8 py-4 bg-white text-black font-bold text-xl hover:bg-gray-200 uppercase"
+											className="px-8 py-4 bg-green-600 text-white font-bold text-xl hover:bg-green-500 uppercase"
 										>
-											{raceResult === 'WIN'
-												? 'Back to Map'
-												: 'Back to Map'}
+											RACE AGAIN
 										</button>
 									)}
 									<button
@@ -3135,14 +3310,12 @@ const GameCanvas: React.FC = () => {
 													setRaceStatus('IDLE');
 												});
 											} else {
-												setPhase('MISSION_SELECT');
+												setPhase('MAP');
 											}
 										}}
 										className="px-8 py-4 bg-gray-800 text-white font-bold text-xl hover:bg-gray-700 uppercase"
 									>
-										{phase === 'ONLINE_RACE'
-											? 'Back to Lobby'
-											: 'Back to Menu'}
+										BACK TO MENU
 									</button>
 								</>
 							)}
@@ -3223,6 +3396,8 @@ const GameCanvas: React.FC = () => {
 							onRefreshDailyShop: refreshDailyShop,
 							dailyShopItems,
 							onTestTrack: startTestTrack,
+							showDailyRewards,
+							setShowDailyRewards,
 							onManualTuningChange: (tuning) => {
 								if (garage[currentCarIndex]) {
 									const updatedCar = {
