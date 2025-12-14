@@ -38,6 +38,9 @@ export class AudioEngine {
 	private mufflerFilter: BiquadFilterNode | null = null;
 	private highShelf: BiquadFilterNode | null = null;
 
+	// Buffer Cache
+	private buffers: Record<string, AudioBuffer> = {};
+
 	private isInitialized = false;
 
 	// Config
@@ -205,8 +208,46 @@ export class AudioEngine {
 		this.driftOsc.start();
 		this.turboOsc.start();
 
+		// Pre-generate buffers
+		this.generateBuffers();
+
 		this.isInitialized = true;
 		if (this.ctx.state === 'suspended') await this.ctx.resume();
+	}
+
+	private generateBuffers() {
+		if (!this.ctx) return;
+
+		// 1. Pop / Backfire Buffer
+		const popDuration = 0.15;
+		const popBuffer = this.ctx.createBuffer(
+			1,
+			this.ctx.sampleRate * popDuration,
+			this.ctx.sampleRate
+		);
+		const popData = popBuffer.getChannelData(0);
+		let lastNoise = 0;
+		for (let i = 0; i < popBuffer.length; i++) {
+			const white = Math.random() * 2 - 1;
+			lastNoise = (lastNoise + 0.1 * white) / 1.1;
+			popData[i] = lastNoise * 5.0;
+			if (popData[i] > 1) popData[i] = 1;
+			if (popData[i] < -1) popData[i] = -1;
+		}
+		this.buffers['pop'] = popBuffer;
+
+		// 2. Shift Noise Buffer (Long enough for both up/down shift variations)
+		const shiftDuration = 0.4;
+		const shiftBuffer = this.ctx.createBuffer(
+			1,
+			this.ctx.sampleRate * shiftDuration,
+			this.ctx.sampleRate
+		);
+		const shiftData = shiftBuffer.getChannelData(0);
+		for (let i = 0; i < shiftBuffer.length; i++) {
+			shiftData[i] = Math.random() * 2 - 1;
+		}
+		this.buffers['shift'] = shiftBuffer;
 	}
 
 	setConfiguration(
@@ -483,39 +524,29 @@ export class AudioEngine {
 	}
 
 	public createPop(volume: number) {
-		if (!this.ctx || !this.engineGain) return; // Use engineGain
-		const duration = 0.15;
-		const bufferSize = this.ctx.sampleRate * duration;
-		const buffer = this.ctx.createBuffer(
-			1,
-			bufferSize,
-			this.ctx.sampleRate
-		);
-		const data = buffer.getChannelData(0);
-		for (let i = 0; i < bufferSize; i++) {
-			const white = Math.random() * 2 - 1;
-			this.lastNoise = (this.lastNoise + 0.1 * white) / 1.1;
-			data[i] = this.lastNoise * 5.0;
-			if (data[i] > 1) data[i] = 1;
-			if (data[i] < -1) data[i] = -1;
-		}
+		if (!this.ctx || !this.engineGain || !this.buffers['pop']) return;
+
 		const source = this.ctx.createBufferSource();
-		source.buffer = buffer;
+		source.buffer = this.buffers['pop'];
+
 		const filter = this.ctx.createBiquadFilter();
 		filter.type = 'lowpass';
 		filter.frequency.value = 300 + Math.random() * 800;
 		filter.Q.value = 2;
+
 		const gain = this.ctx.createGain();
 		const finalVol = volume * (0.8 + Math.random() * 0.4);
 		gain.gain.setValueAtTime(finalVol, this.ctx.currentTime);
 		gain.gain.exponentialRampToValueAtTime(
 			0.01,
-			this.ctx.currentTime + duration * 0.8
+			this.ctx.currentTime + source.buffer.duration * 0.8
 		);
+
 		source.connect(filter);
 		filter.connect(gain);
 		if (this.distortion) gain.connect(this.distortion);
-		else gain.connect(this.engineGain); // Connect to engineGain
+		else gain.connect(this.engineGain);
+
 		source.start();
 	}
 
@@ -524,19 +555,14 @@ export class AudioEngine {
 		peakVolume: number,
 		filterFreq: number
 	) {
-		if (!this.ctx || !this.engineGain) return; // Use engineGain
-		const bufferSize = this.ctx.sampleRate * duration;
-		const buffer = this.ctx.createBuffer(
-			1,
-			bufferSize,
-			this.ctx.sampleRate
-		);
-		const data = buffer.getChannelData(0);
-		for (let i = 0; i < bufferSize; i++) {
-			data[i] = Math.random() * 2 - 1;
-		}
-		const noise = this.ctx.createBufferSource();
-		noise.buffer = buffer;
+		if (!this.ctx || !this.engineGain || !this.buffers['shift']) return;
+
+		const source = this.ctx.createBufferSource();
+		source.buffer = this.buffers['shift'];
+
+		// If requested duration is longer than buffer, we just play buffer (it's short burst anyway)
+		// Or we could loop? No, bursts are short.
+
 		const noiseGain = this.ctx.createGain();
 		noiseGain.gain.setValueAtTime(0, this.ctx.currentTime);
 		noiseGain.gain.linearRampToValueAtTime(
@@ -547,19 +573,23 @@ export class AudioEngine {
 			0.001,
 			this.ctx.currentTime + duration
 		);
+
 		const noiseFilter = this.ctx.createBiquadFilter();
 		noiseFilter.type = 'lowpass';
 		noiseFilter.frequency.value = filterFreq;
-		noise.connect(noiseFilter);
+
+		source.connect(noiseFilter);
 		noiseFilter.connect(noiseGain);
-		noiseGain.connect(this.engineGain); // Connect to engineGain
-		noise.start();
+		noiseGain.connect(this.engineGain);
+
+		source.start();
+		// Stop slightly after duration to ensure cleanup
 		setTimeout(() => {
-			noise.stop();
-			noise.disconnect();
+			source.stop();
+			source.disconnect();
 			noiseGain.disconnect();
 			noiseFilter.disconnect();
-		}, duration * 1000 + 100);
+		}, duration * 1000 + 200);
 	}
 
 	private makeDistortionCurve(amount: number) {

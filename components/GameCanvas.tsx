@@ -29,6 +29,8 @@ import { TestTrackUtils } from '../utils/TestTrackUtils';
 import Dashboard from './Dashboard';
 import { SoundProvider } from '../contexts/SoundContext';
 import { DailyRewardsModal } from './menu/DailyRewardsModal';
+import { Preloader } from './Preloader';
+import { SavingIndicator } from './SavingIndicator';
 import { CountdownOverlay } from './race/CountdownOverlay';
 import { TestTrackControls } from './race/TestTrackControls';
 import { RaceResults } from './race/RaceResults';
@@ -83,6 +85,9 @@ const GameCanvas: React.FC = () => {
 	// Particle System
 	const particleSystemRef = useRef<ParticleSystem>(new ParticleSystem());
 
+	// Asset Preloading State
+	const [assetsLoaded, setAssetsLoaded] = useState(false);
+
 	// Game Persistence State
 	const [money, setRawMoney] = useState(0);
 	const [phase, setPhase] = useState<GamePhase>('MAP');
@@ -130,11 +135,14 @@ const GameCanvas: React.FC = () => {
 	const [seasonalTreesImg, setSeasonalTreesImg] =
 		useState<HTMLImageElement | null>(null);
 
+	// Image loading is now handled by Preloader (cached), but we still need to set state
 	useEffect(() => {
-		const img = new Image();
-		img.src = '/seasonal-trees.png';
-		img.onload = () => setSeasonalTreesImg(img);
-	}, []);
+		if (assetsLoaded) {
+			const img = new Image();
+			img.src = '/seasonal-trees.png';
+			img.onload = () => setSeasonalTreesImg(img);
+		}
+	}, [assetsLoaded]);
 
 	// Music Logic handled in the phased delay effect below
 
@@ -196,6 +204,7 @@ const GameCanvas: React.FC = () => {
 		loaded: isGameLoaded,
 		notifyMoneyUpdate,
 		saveGame,
+		isSyncing,
 	} = useGamePersistence(
 		money,
 		setRawMoney,
@@ -501,6 +510,34 @@ const GameCanvas: React.FC = () => {
 		audioInitializedRef,
 		audioRef,
 		opponentAudioRef
+	);
+
+	// Touch Controls Handler
+	const handleTouchControl = useCallback(
+		(action: string, pressed: boolean) => {
+			if (!inputsRef.current) return;
+			switch (action) {
+				case 'GAS':
+					inputsRef.current.gas = pressed;
+					break;
+				case 'BRAKE':
+					inputsRef.current.brake = pressed;
+					break;
+				case 'CLUTCH':
+					inputsRef.current.clutch = pressed;
+					break;
+				case 'SHIFT_UP':
+					inputsRef.current.shiftUp = pressed;
+					break;
+				case 'SHIFT_DOWN':
+					inputsRef.current.shiftDown = pressed;
+					break;
+				case 'PURGE':
+					inputsRef.current.purge = pressed;
+					break;
+			}
+		},
+		[]
 	);
 
 	// Online Race Trigger & Sync
@@ -875,7 +912,7 @@ const GameCanvas: React.FC = () => {
 			const newXp = Math.max(0, xp - nextLevelThreshold);
 			setXp(newXp);
 			saveGame({ level: level + 1, xp: newXp }); // Immediate Save
-			showToast(`LEVEL UP! You are now Level ${level + 1}`, 'SUCCESS');
+			// showToast(`LEVEL UP! You are now Level ${level + 1}`, 'SUCCESS');
 		}
 	}, [xp, level, showToast, saveGame]);
 
@@ -1219,6 +1256,18 @@ const GameCanvas: React.FC = () => {
 
 	return (
 		<div className="relative w-full h-full bg-black overflow-hidden font-sans select-none">
+			{!assetsLoaded && (
+				<Preloader
+					onComplete={() => {
+						// Initialize audio contexts on user interaction
+						audioRef.current.init();
+						opponentAudioRef.current.init();
+						audioInitializedRef.current = true;
+						setAssetsLoaded(true);
+					}}
+				/>
+			)}
+
 			<canvas
 				ref={canvasRef}
 				width={window.innerWidth}
@@ -1243,6 +1292,7 @@ const GameCanvas: React.FC = () => {
 						missedGear={missedGearAlert}
 						settings={settings}
 						isTestTrack={phase === 'TEST_TRACK'}
+						onTouchControl={handleTouchControl}
 					/>
 					<CountdownOverlay countdownNum={countdownNum} />
 					{phase === 'TEST_TRACK' && (
@@ -1407,6 +1457,8 @@ const GameCanvas: React.FC = () => {
 					onClose={() => setShowDailyRewards(false)}
 				/>
 			)}
+
+			{isSyncing && <SavingIndicator />}
 		</div>
 	);
 };

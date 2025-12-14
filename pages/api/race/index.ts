@@ -138,6 +138,20 @@ export default async function handler(
 				// Update My State
 				const { raceId, progress, speed, finished, time } = req.body;
 
+				// Anti-Cheat Validation
+				if (finished) {
+					// 1/4 mile world record is ~3.58s. fast cars in game might do 4s.
+					// Anything under 3.5s is considered physically impossible for this game's physics.
+					// This prevents blatant speed hacks (e.g. 0.1s finish).
+					if (time < 3.5) {
+						return res.status(400).json({
+							message:
+								'Validation Failed: Race time physically impossible',
+							code: 'INVALID_TIME',
+						});
+					}
+				}
+
 				const race = await prisma.race.findUnique({
 					where: { id: raceId },
 				});

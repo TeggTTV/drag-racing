@@ -109,39 +109,48 @@ export const useDailyRewards = (
 		const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 		const lastLogin = loginStreak.lastLoginDate;
 
-		if (lastLogin === today) {
-			// Already logged in today
-			return;
+		// 1. Handle Streak Update
+		if (lastLogin !== today) {
+			const yesterday = new Date();
+			yesterday.setDate(yesterday.getDate() - 1);
+			const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+			let newStreak = 1;
+			let newRewardsClaimed = loginStreak.rewardsClaimed;
+
+			if (lastLogin === yesterdayStr) {
+				// Consecutive day
+				newStreak = loginStreak.currentStreak + 1;
+			} else {
+				// Streak broken or first login
+				newStreak = 1;
+				newRewardsClaimed = []; // Reset claimed rewards on streak break
+			}
+
+			const newLoginStreak: LoginStreak = {
+				currentStreak: newStreak,
+				lastLoginDate: today,
+				longestStreak: Math.max(loginStreak.longestStreak, newStreak),
+				totalLogins: loginStreak.totalLogins + 1,
+				rewardsClaimed: newRewardsClaimed,
+			};
+
+			setLoginStreak(newLoginStreak);
+			saveGame({ loginStreak: newLoginStreak });
+			return; // Allow state to update before checking rewards
 		}
 
-		const yesterday = new Date();
-		yesterday.setDate(yesterday.getDate() - 1);
-		const yesterdayStr = yesterday.toISOString().split('T')[0];
+		// 2. Show Modal if Reward Not Claimed
+		const currentStreakDay = loginStreak.currentStreak;
+		const hasClaimedToday =
+			loginStreak.rewardsClaimed.includes(currentStreakDay);
 
-		let newStreak = 1;
-		if (lastLogin === yesterdayStr) {
-			// Consecutive day
-			newStreak = loginStreak.currentStreak + 1;
-		} else if (lastLogin) {
-			// Streak broken
-			newStreak = 1;
+		if (!hasClaimedToday) {
+			const timer = setTimeout(() => {
+				setShowDailyRewards(true);
+			}, 1000);
+			return () => clearTimeout(timer);
 		}
-
-		const newLoginStreak: LoginStreak = {
-			currentStreak: newStreak,
-			lastLoginDate: today,
-			longestStreak: Math.max(loginStreak.longestStreak, newStreak),
-			totalLogins: loginStreak.totalLogins + 1,
-			rewardsClaimed: loginStreak.rewardsClaimed,
-		};
-
-		setLoginStreak(newLoginStreak);
-		saveGame({ loginStreak: newLoginStreak });
-
-		// Show rewards modal
-		setTimeout(() => {
-			setShowDailyRewards(true);
-		}, 1000); // Delay to let game load
 	}, [
 		isGameLoaded,
 		loginStreak,

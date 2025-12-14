@@ -236,7 +236,7 @@ export const GameMenu = () => {
 				return newInventory;
 			});
 
-			showToast(`Equipped ${item.name}`, 'SUCCESS');
+			// showToast(`Equipped ${item.name}`, 'SUCCESS');
 			return xpGained;
 		}
 
@@ -262,7 +262,7 @@ export const GameMenu = () => {
 					// Delay UI update to sync with animation (1.1s total duration)
 					setTimeout(() => setGarage(data.garage), 1100);
 				}
-				showToast(`Equipped ${item.name}`, 'SUCCESS');
+				// showToast(`Equipped ${item.name}`, 'SUCCESS');
 				return data.xpGained || 0;
 			} else {
 				const err = await res.json();

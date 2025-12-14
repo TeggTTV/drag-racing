@@ -53,6 +53,7 @@ export const useGamePersistence = (
 	setLoginStreak: (streak: LoginStreak) => void
 ) => {
 	const [loaded, setLoaded] = useState(false);
+	const [isSyncing, setIsSyncing] = useState(false);
 	const { token, user } = useAuth();
 	const lastMoneyUpdateRef = React.useRef(0);
 
@@ -572,6 +573,7 @@ export const useGamePersistence = (
 			};
 
 			try {
+				setIsSyncing(true);
 				lastSyncRef.current = Date.now();
 				await fetch(
 					getFullUrl('/api/users/:id').replace(':id', user.id),
@@ -587,6 +589,8 @@ export const useGamePersistence = (
 				// console.log('Game saved immediately');
 			} catch (e) {
 				console.error('Failed to save game', e);
+			} finally {
+				setIsSyncing(false);
 			}
 		},
 		[
@@ -617,6 +621,7 @@ export const useGamePersistence = (
 
 		syncTimeoutRef.current = setTimeout(async () => {
 			try {
+				setIsSyncing(true);
 				// Sync only statistical/progress data (NOT money)
 				await fetch(
 					getFullUrl('/api/users/:id').replace(':id', user.id),
@@ -639,6 +644,8 @@ export const useGamePersistence = (
 				lastSyncRef.current = Date.now();
 			} catch (e) {
 				console.error('Failed to sync to server', e);
+			} finally {
+				setIsSyncing(false);
 			}
 		}, 2000); // 2 second debounce
 
@@ -649,5 +656,5 @@ export const useGamePersistence = (
 		};
 	}, [currentState, loaded, token, user, phase]);
 
-	return { loaded, notifyMoneyUpdate, saveGame };
+	return { loaded, notifyMoneyUpdate, saveGame, isSyncing };
 };

@@ -12,7 +12,8 @@ type TransactionType =
 	| 'ITEM_PURCHASE'
 	| 'SHOP_PURCHASE'
 	| 'JUNKYARD_PURCHASE'
-	| 'REPAIR_COST';
+	| 'REPAIR_COST'
+	| 'DAILY_REWARD';
 
 interface TransactionRequest {
 	type: TransactionType;
@@ -92,6 +93,15 @@ export default async function handler(
 					return res
 						.status(400)
 						.json({ message: 'Invalid purchase amount' });
+				}
+				break;
+
+			case 'DAILY_REWARD':
+				// Daily reward should be positive amount
+				if (amount <= 0) {
+					return res
+						.status(400)
+						.json({ message: 'Invalid daily reward amount' });
 				}
 				break;
 

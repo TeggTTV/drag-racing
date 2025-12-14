@@ -10,6 +10,7 @@ interface DashboardProps {
 	settings?: GameSettings;
 	inputs?: any; // InputState
 	isTestTrack?: boolean;
+	onTouchControl?: (action: string, pressed: boolean) => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({
@@ -21,6 +22,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 	settings,
 	inputs,
 	isTestTrack,
+	onTouchControl,
 }) => {
 	const speedKmh = Math.floor(carState.velocity * 3.6);
 	const rpm = Math.round(carState.rpm);
@@ -256,6 +258,69 @@ const Dashboard: React.FC<DashboardProps> = ({
 					</div>
 					<div className="text-white font-bold text-2xl mt-2 bg-red-900/80 px-4 py-1 rounded">
 						MISSED SHIFT
+					</div>
+				</div>
+			)}
+
+			{/* Touch Data - Mobile Only (Hidden on Desktop via media query ideally, or just always present but invisible) */}
+			{/* We make them functional but invisible. z-index high but below modal overlays if any. */}
+			{onTouchControl && (
+				<div className="absolute inset-0 z-[40] pointer-events-auto flex">
+					{/* Left Zone: Clutch (Bottom) / Shift Down (Top) */}
+					<div className="w-1/2 h-full flex flex-col">
+						{/* Shift Down Zone (Top 40%) */}
+						<div
+							className="h-[40%] active:bg-red-500/10"
+							onTouchStart={() =>
+								onTouchControl('SHIFT_DOWN', true)
+							}
+							onTouchEnd={() =>
+								onTouchControl('SHIFT_DOWN', false)
+							}
+						></div>
+
+						{/* Clutch/Brake Zone (Bottom 60%) */}
+						<div className="h-[60%] flex">
+							{/* Brake (Left edge) */}
+							<div
+								className="w-1/3 h-full active:bg-red-900/20"
+								onTouchStart={() =>
+									onTouchControl('BRAKE', true)
+								}
+								onTouchEnd={() =>
+									onTouchControl('BRAKE', false)
+								}
+							></div>
+							{/* Clutch (Main Left) */}
+							<div
+								className="w-2/3 h-full active:bg-blue-500/10"
+								onTouchStart={() =>
+									onTouchControl('CLUTCH', true)
+								}
+								onTouchEnd={() =>
+									onTouchControl('CLUTCH', false)
+								}
+							></div>
+						</div>
+					</div>
+
+					{/* Right Zone: Shift Up (Top) / Gas (Bottom) */}
+					<div className="w-1/2 h-full flex flex-col">
+						{/* Shift Up Zone (Top 40%) */}
+						<div
+							className="h-[40%] active:bg-green-500/10"
+							onTouchStart={() =>
+								onTouchControl('SHIFT_UP', true)
+							}
+							onTouchEnd={() => onTouchControl('SHIFT_UP', false)}
+						></div>
+
+						{/* Gas Zone (Bottom 60%) */}
+						<div
+							className="h-[60%] active:bg-orange-500/10"
+							onTouchStart={() => onTouchControl('GAS', true)}
+							onTouchEnd={() => onTouchControl('GAS', false)}
+						></div>
 					</div>
 				</div>
 			)}
