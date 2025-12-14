@@ -4,6 +4,8 @@ import { InputState, GamePhase } from '../types';
 
 export const useGameInput = (
 	phase: GamePhase,
+	setPhase: (phase: GamePhase) => void,
+	setRaceResult: (result: any) => void,
 	audioInitializedRef: MutableRefObject<boolean>,
 	audioRef: MutableRefObject<any>,
 	opponentAudioRef: MutableRefObject<any>
@@ -17,6 +19,7 @@ export const useGameInput = (
 		purge: false,
 	});
 
+	// Track which keys are currently pressed to prevent repeat firing
 	const keysPressed = useRef<Set<string>>(new Set());
 
 	useEffect(() => {
@@ -28,11 +31,26 @@ export const useGameInput = (
 				audioInitializedRef.current = true;
 			}
 
-			if (phase !== 'RACE') return;
+			if (
+				phase !== 'RACE' &&
+				phase !== 'ONLINE_RACE' &&
+				phase !== 'TEST_TRACK'
+			)
+				return;
 
 			// Prevent repeated keydown events when key is held
 			if (keysPressed.current.has(e.key)) return;
 			keysPressed.current.add(e.key);
+
+			if (e.key === 'Escape') {
+				if (phase === 'TEST_TRACK') {
+					// Exit Test Track
+					audioRef.current.stop();
+					setRaceResult(null);
+					setPhase('GARAGE');
+					return;
+				}
+			}
 
 			switch (e.key) {
 				case CONTROLS.GAS:
@@ -43,6 +61,15 @@ export const useGameInput = (
 					break;
 				case CONTROLS.SHIFT_DOWN:
 					inputsRef.current.shiftDown = true;
+					break;
+				case CONTROLS.CLUTCH:
+					inputsRef.current.clutch = true;
+					break;
+				case CONTROLS.BRAKE:
+					inputsRef.current.brake = true;
+					break;
+				case CONTROLS.PURGE:
+					inputsRef.current.purge = true;
 					break;
 			}
 		};
@@ -60,6 +87,15 @@ export const useGameInput = (
 					break;
 				case CONTROLS.SHIFT_DOWN:
 					inputsRef.current.shiftDown = false;
+					break;
+				case CONTROLS.CLUTCH:
+					inputsRef.current.clutch = false;
+					break;
+				case CONTROLS.BRAKE:
+					inputsRef.current.brake = false;
+					break;
+				case CONTROLS.PURGE:
+					inputsRef.current.purge = false;
 					break;
 			}
 		};
@@ -83,7 +119,14 @@ export const useGameInput = (
 			window.removeEventListener('click', handleInteraction);
 			window.removeEventListener('touchstart', handleInteraction);
 		};
-	}, [phase, audioInitializedRef, audioRef, opponentAudioRef]);
+	}, [
+		phase,
+		setPhase,
+		setRaceResult,
+		audioInitializedRef,
+		audioRef,
+		opponentAudioRef,
+	]);
 
 	return inputsRef;
 };

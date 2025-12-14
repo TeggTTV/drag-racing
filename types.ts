@@ -13,6 +13,8 @@ export type GamePhase =
 	| 'ONLINE_RACE'
 	| 'TEST_TRACK';
 
+export type RaceStatus = 'IDLE' | 'COUNTDOWN' | 'RACING' | 'FINISHED';
+
 export interface InputState {
 	gas: boolean;
 	shiftUp: boolean;
