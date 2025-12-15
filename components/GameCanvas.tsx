@@ -23,7 +23,7 @@ import { useRaceEvents } from '../hooks/useRaceEvents';
 import { useRaceRenderer } from '../hooks/useRaceRenderer';
 import { useRaceSetup } from '../hooks/useRaceSetup';
 import { ItemMerge } from '../utils/ItemMerge';
-import { getFullUrl } from '../utils/prisma';
+import { getFullUrl } from '../lib/api-config';
 import { ItemGenerator, CRATES } from '../utils/ItemGenerator';
 import { GAME_ITEMS } from '../data/GameItems';
 import { TestTrackUtils } from '../utils/TestTrackUtils';

@@ -1,32 +1,21 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '../../../utils/prisma';
-import jwt from 'jsonwebtoken';
+import prisma from '../../../lib/prisma';
+import { getUserIdFromRequest } from '../../../lib/auth';
 import { ItemMerge } from '../../../utils/ItemMerge';
 import { InventoryItem, SavedTune } from '../../../types';
-
-const JWT_SECRET =
-	process.env.JWT_SECRET || 'fallback_secret_do_not_use_in_prod';
+import type { ApiResponse } from '../../../types/api';
 
 export default async function handler(
 	req: NextApiRequest,
-	res: NextApiResponse
+	res: NextApiResponse<ApiResponse>
 ) {
 	if (req.method !== 'POST') {
+		res.setHeader('Allow', ['POST']);
 		return res.status(405).json({ message: 'Method not allowed' });
 	}
 
-	// Auth check
-	const authHeader = req.headers.authorization;
-	let userId: string | null = null;
-	if (authHeader && authHeader.startsWith('Bearer ')) {
-		try {
-			const token = authHeader.split(' ')[1];
-			const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
-			userId = decoded.userId;
-		} catch (e) {
-			return res.status(401).json({ message: 'Unauthorized' });
-		}
-	} else {
+	const userId = getUserIdFromRequest(req);
+	if (!userId) {
 		return res.status(401).json({ message: 'Unauthorized' });
 	}
 

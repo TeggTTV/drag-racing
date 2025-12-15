@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { getFullUrl } from '../utils/prisma';
+import { getFullUrl } from '../lib/api-config';
 
 // Basic JWT Decode Helper
 const decodeJwt = (token: string) => {

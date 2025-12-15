@@ -1,13 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '../../../utils/prisma';
-import jwt from 'jsonwebtoken';
-
-const JWT_SECRET =
-	process.env.JWT_SECRET || 'fallback_secret_do_not_use_in_prod';
+import prisma from '../../../lib/prisma';
+import { getUserIdFromRequest } from '../../../lib/auth';
+import type { ApiResponse } from '../../../types/api';
 
 export default async function handler(
 	req: NextApiRequest,
-	res: NextApiResponse
+	res: NextApiResponse<ApiResponse>
 ) {
 	const { id } = req.query;
 
@@ -15,16 +13,7 @@ export default async function handler(
 		return res.status(400).json({ message: 'Invalid ID' });
 	}
 
-	// Auth check for protected actions
-	const authHeader = req.headers.authorization;
-	let requesterId: string | null = null;
-	if (authHeader && authHeader.startsWith('Bearer ')) {
-		try {
-			const token = authHeader.split(' ')[1];
-			const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
-			requesterId = decoded.userId;
-		} catch (e) {}
-	}
+	const requesterId = getUserIdFromRequest(req);
 
 	if (req.method === 'GET') {
 		try {
@@ -90,5 +79,6 @@ export default async function handler(
 		}
 	}
 
+	res.setHeader('Allow', ['GET', 'PUT']);
 	return res.status(405).json({ message: 'Method not allowed' });
 }

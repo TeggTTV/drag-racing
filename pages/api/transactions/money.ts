@@ -1,46 +1,19 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '../../../utils/prisma';
-import jwt from 'jsonwebtoken';
-
-const JWT_SECRET =
-	process.env.JWT_SECRET || 'fallback_secret_do_not_use_in_prod';
-
-type TransactionType =
-	| 'RACE_WIN'
-	| 'RACE_LOSS'
-	| 'ITEM_SALE'
-	| 'ITEM_PURCHASE'
-	| 'SHOP_PURCHASE'
-	| 'JUNKYARD_PURCHASE'
-	| 'REPAIR_COST'
-	| 'DAILY_REWARD';
-
-interface TransactionRequest {
-	type: TransactionType;
-	amount: number;
-	metadata?: Record<string, any>;
-}
+import prisma from '../../../lib/prisma';
+import type { ApiResponse, TransactionRequest } from '../../../types/api';
+import { getUserIdFromRequest } from '../../../lib/auth';
 
 export default async function handler(
 	req: NextApiRequest,
-	res: NextApiResponse
+	res: NextApiResponse<ApiResponse>
 ) {
 	if (req.method !== 'POST') {
+		res.setHeader('Allow', ['POST']);
 		return res.status(405).json({ message: 'Method not allowed' });
 	}
 
-	// Auth check
-	const authHeader = req.headers.authorization;
-	let userId: string | null = null;
-	if (authHeader && authHeader.startsWith('Bearer ')) {
-		try {
-			const token = authHeader.split(' ')[1];
-			const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
-			userId = decoded.userId;
-		} catch (e) {
-			return res.status(401).json({ message: 'Unauthorized' });
-		}
-	} else {
+	const userId = getUserIdFromRequest(req);
+	if (!userId) {
 		return res.status(401).json({ message: 'Unauthorized' });
 	}
 
@@ -134,22 +107,22 @@ export default async function handler(
 		);
 
 		// Execute all updates in a single transaction
-		// Execute updates sequentially (Transactions require Replica Set in Mongo)
-		const updatedUser = await prisma.user.update({
-			where: { id: userId! },
-			data: {
-				money: newBalance,
-			},
-		});
-
-		const transaction = await prisma.transaction.create({
-			data: {
-				userId: userId!,
-				type,
-				amount: validAmount,
-				metadata: metadata || {},
-			},
-		});
+		const [updatedUser, transaction] = await prisma.$transaction([
+			prisma.user.update({
+				where: { id: userId! },
+				data: {
+					money: newBalance,
+				},
+			}),
+			prisma.transaction.create({
+				data: {
+					userId: userId!,
+					type,
+					amount: validAmount,
+					metadata: metadata || {},
+				},
+			}),
+		]);
 
 		console.log(
 			`[TRANSACTION] Success! New Balance: ${updatedUser.money}, TxID: ${transaction.id}`

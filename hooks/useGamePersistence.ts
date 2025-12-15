@@ -10,7 +10,7 @@ import {
 import { MISSIONS, BASE_TUNING } from '../constants';
 import { generateDailyChallenges } from '../utils/dailyChallengeUtils';
 import { useAuth } from '../contexts/AuthContext';
-import { getFullUrl } from '../utils/prisma';
+import { getFullUrl } from '../lib/api-config';
 import { CURRENT_SEASON_ID } from '../constants/SeasonData';
 
 export const useGamePersistence = (

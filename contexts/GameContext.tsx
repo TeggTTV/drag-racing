@@ -91,6 +91,7 @@ export interface GameContextType {
 			xp: number;
 			money: number;
 			loginStreak: LoginStreak;
+			settings: GameSettings;
 		}>
 	) => Promise<void>;
 	setShowSeasonPass: (show: boolean) => void;

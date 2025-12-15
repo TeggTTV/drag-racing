@@ -36,7 +36,7 @@ import { ItemMerge } from '../utils/ItemMerge';
 
 import { useGame } from '../contexts/GameContext';
 import { useAuth } from '../contexts/AuthContext';
-import { getFullUrl } from '../utils/prisma';
+import { getFullUrl } from '../lib/api-config';
 import { processMoneyTransaction } from '../utils/transactions';
 import { getSkillBonus } from '../utils/skillUtils';
 

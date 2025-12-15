@@ -1,16 +1,20 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../../../lib/prisma';
+import type { ApiResponse } from '../../../types/api';
 
 const JWT_SECRET =
 	process.env.JWT_SECRET || 'fallback_secret_do_not_use_in_prod';
 
-export default async function POST(req: NextApiRequest, res: NextApiResponse) {
+export default async function POST(
+	req: NextApiRequest,
+	res: NextApiResponse<ApiResponse>
+) {
 	if (req.method !== 'POST') {
+		res.setHeader('Allow', ['POST']);
 		return res.status(405).json({ message: 'Method not allowed' });
 	}
-	const prisma = new PrismaClient();
 
 	const { username, email, password } = req.body;
 
