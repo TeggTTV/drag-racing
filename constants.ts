@@ -1,4 +1,11 @@
-import { Mission, TuningState, ModNode, Rival, SkillNode } from './types';
+import {
+	Mission,
+	TuningState,
+	ModNode,
+	Rival,
+	SkillNode,
+	ItemSet,
+} from './types';
 
 // Base Car Stats (Stock Hatchback)
 export const INITIAL_MONEY = 1000;
@@ -1624,5 +1631,141 @@ export const SKILL_TREE: SkillNode[] = [
 		x: -4,
 		y: 0,
 		stats: { repairCostMultiplier: 0.75, salvageYieldMultiplier: 1.3 },
+	},
+];
+
+// --- ITEM SETS ---
+export const ITEM_SETS: ItemSet[] = [
+	{
+		id: 'street_king_set',
+		name: 'Street King Set',
+		description:
+			'The essentials for dominating the streets. Balanced power and handling.',
+		requiredItemIds: ['summer_tires', 'catback_exhaust', 'ecu_remap'],
+		bonusStats: {
+			maxTorque: 15,
+		},
+		bonusMultipliers: {
+			xpGain: 1.1, // +10% XP when racing with this set
+		},
+		color: '#FFD700', // Gold
+	},
+	{
+		id: 'turbo_master_set',
+		name: 'Turbo Master Set',
+		description:
+			'Peak forced induction performance. All turbo parts working in harmony.',
+		requiredItemIds: [
+			'turbo_upgrade',
+			'intercooler_upgrade',
+			'blow_off_valve',
+		],
+		bonusStats: {
+			maxTorque: 25,
+			turboIntensity: 0.15,
+		},
+		bonusMultipliers: {
+			maxTorque: 1.05, // +5% to total torque
+		},
+		color: '#00BFFF', // Deep Sky Blue
+	},
+	{
+		id: 'lightweight_racer_set',
+		name: 'Lightweight Racer Set',
+		description:
+			'Maximum weight reduction for lightning-quick acceleration.',
+		requiredItemIds: [
+			'stripped_interior',
+			'bucket_seat',
+			'lightweight_wheels',
+		],
+		bonusStats: {
+			mass: -20, // Additional weight reduction bonus
+			dragCoefficient: -0.01,
+		},
+		bonusMultipliers: {
+			tireGrip: 1.03, // Better power-to-weight means better traction utilization
+		},
+		color: '#C0C0C0', // Silver
+	},
+	{
+		id: 'drag_specialist_set',
+		name: 'Drag Specialist Set',
+		description:
+			'Built for the quarter-mile. Launch hard, shift fast, cross first.',
+		requiredItemIds: ['drag_radials', 'lsd_diff', 'lightweight_flywheel'],
+		bonusStats: {
+			tireGrip: 0.15,
+			flywheelMass: -0.5,
+		},
+		bonusMultipliers: {
+			maxTorque: 1.08, // +8% torque for explosive launches
+			xpGain: 1.15, // +15% XP for using specialized equipment
+		},
+		color: '#FF4500', // Orange Red
+	},
+	{
+		id: 'NA_purist_set',
+		name: 'N/A Purist Set',
+		description:
+			'Naturally aspirated perfection. High-revs, precision, and soul.',
+		requiredItemIds: ['cams_perf', 'intake_manifold', 'ported_head'],
+		bonusStats: {
+			maxTorque: 30,
+			redlineRPM: 500,
+		},
+		bonusMultipliers: {
+			xpGain: 1.12, // +12% XP for mastering the N/A build
+		},
+		color: '#9370DB', // Medium Purple
+	},
+	{
+		id: 'electronics_guru_set',
+		name: 'Electronics Guru Set',
+		description: 'Digital mastery. Optimal tuning through tech.',
+		requiredItemIds: ['standalone_ecu', 'radar_detector'],
+		bonusStats: {
+			maxTorque: 20,
+			redlineRPM: 300,
+		},
+		bonusMultipliers: {
+			maxTorque: 1.04, // +4% torque from perfect tuning
+		},
+		color: '#00FF00', // Lime Green
+	},
+	{
+		id: 'cooling_pro_set',
+		name: 'Cooling Pro Set',
+		description:
+			'Keep it cool under pressure. Reliability through temperature control.',
+		requiredItemIds: ['radiator_alu', 'oil_cooler', 'intercooler_upgrade'],
+		bonusStats: {
+			maxTorque: 12, // Cooler temps = denser air + less power loss
+		},
+		bonusMultipliers: {
+			brakingForce: 1.05, // Cooler brake temps = better braking
+		},
+		color: '#1E90FF', // Dodger Blue
+	},
+	{
+		id: 'ultimate_power_set',
+		name: 'Ultimate Power Set',
+		description: 'No compromises. Maximum power at all costs.',
+		requiredItemIds: [
+			'standalone_ecu',
+			'turbo_upgrade',
+			'forged_internals',
+			'fuel_injectors',
+			'nitrous_system',
+		],
+		bonusStats: {
+			maxTorque: 50,
+			turboIntensity: 0.2,
+		},
+		bonusMultipliers: {
+			maxTorque: 1.1, // +10% total torque multiplier for the ultimate setup
+			xpGain: 1.25, // +25% XP for achieving peak performance
+		},
+		color: '#FF0000', // Red
 	},
 ];

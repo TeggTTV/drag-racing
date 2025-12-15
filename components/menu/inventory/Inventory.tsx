@@ -3,6 +3,8 @@ import { InventoryItem } from '@/types';
 import { ItemGenerator } from '@/utils/ItemGenerator';
 import { ItemCard } from '@/components/ui/ItemCard';
 import { ItemMerge } from '@/utils/ItemMerge';
+import { SetProgressItem } from './SetProgressItem';
+import { findBestLoadout } from '@/utils/LoadoutOptimizer';
 
 interface InventoryProps {
 	items: InventoryItem[]; // Uninstalled items
@@ -77,9 +79,31 @@ export const Inventory: React.FC<InventoryProps> = ({
 	const [sortMethod, setSortMethod] = useState<SortMethod>('RECENT');
 	const [sortDirection, setSortDirection] = useState<'ASC' | 'DESC'>('DESC');
 
+	// Set Filter State
+	const [selectedSetFilter, setSelectedSetFilter] = useState<string | null>(
+		null
+	);
+
 	const COLS = 8;
 	const ITEMS_PER_PAGE = 64;
 	const [currentPage, setCurrentPage] = useState(1);
+
+	// Auto-equip best configuration
+	const handleApplyBest = () => {
+		// Find the best loadout
+		const bestItems = findBestLoadout(items);
+
+		// Equip each item with a small delay for visual feedback
+		bestItems.forEach((item, index) => {
+			setTimeout(() => {
+				// Use center of screen as equip coordinates
+				onEquip(item, {
+					x: window.innerWidth / 2,
+					y: window.innerHeight / 2,
+				});
+			}, index * 100); // 100ms delay between each
+		});
+	};
 
 	// Helper to sort items
 	const sortItems = (items: InventoryItem[]) => {
@@ -123,7 +147,20 @@ export const Inventory: React.FC<InventoryProps> = ({
 	const renderGrid = (itemList: InventoryItem[], isInstalled: boolean) => {
 		// Only sort uninstalled items if requested? Or both?
 		// Usually sorting is most useful for the large uninstalled inventory.
-		const sortedList = isInstalled ? itemList : sortItems(itemList);
+		let sortedList = isInstalled ? itemList : sortItems(itemList);
+
+		// Apply set filter if selected (only for uninstalled inventory)
+		if (!isInstalled && selectedSetFilter) {
+			const { ITEM_SETS } = require('@/constants');
+			const selectedSet = ITEM_SETS.find(
+				(s: any) => s.id === selectedSetFilter
+			);
+			if (selectedSet) {
+				sortedList = sortedList.filter((item) =>
+					selectedSet.requiredItemIds.includes(item.baseId)
+				);
+			}
+		}
 
 		// Pagination for uninstalled items only
 		let displayList = sortedList;
@@ -139,6 +176,12 @@ export const Inventory: React.FC<InventoryProps> = ({
 		const slots = Array(displaySlots)
 			.fill(null)
 			.map((_, i) => displayList[i] || null);
+
+		// Get active sets for visual indicators (only for installed items)
+		const { SetBonus } = require('@/utils/SetBonus');
+		const activeSets = isInstalled
+			? SetBonus.getActiveSets(installedItems)
+			: [];
 
 		return (
 			<div
@@ -159,6 +202,14 @@ export const Inventory: React.FC<InventoryProps> = ({
 					const isMergeSource =
 						mergeSourceItem && item && mergeSourceItem === item;
 
+					// Check if this item is part of an active set
+					const itemInActiveSet =
+						item && isInstalled
+							? activeSets.find((set) =>
+									set.requiredItemIds.includes(item.baseId)
+							  )
+							: null;
+
 					return (
 						<ItemCard
 							key={index}
@@ -172,6 +223,8 @@ export const Inventory: React.FC<InventoryProps> = ({
 								contextMenu?.item === item || isMergeSource
 							}
 							showCondition={true}
+							isInActiveSet={!!itemInActiveSet}
+							activeSetColor={itemInActiveSet?.color}
 							className={
 								isDimmed
 									? 'opacity-20 grayscale'
@@ -277,6 +330,46 @@ export const Inventory: React.FC<InventoryProps> = ({
 					))}
 				</div>
 
+				{/* Set Filter */}
+				{(() => {
+					const { ITEM_SETS } = require('@/constants');
+					return (
+						<div className="flex gap-2 mb-2 px-2 items-center">
+							<span className="text-xs text-gray-500">
+								SET FILTER:
+							</span>
+							<select
+								value={selectedSetFilter || ''}
+								onChange={(e) => {
+									setSelectedSetFilter(
+										e.target.value || null
+									);
+									setCurrentPage(1); // Reset to first page
+								}}
+								className="px-2 py-1 text-[10px] uppercase font-bold rounded border bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700 cursor-pointer"
+							>
+								<option value="">ALL ITEMS</option>
+								{ITEM_SETS.map((set: any) => (
+									<option key={set.id} value={set.id}>
+										{set.name}
+									</option>
+								))}
+							</select>
+							{selectedSetFilter && (
+								<button
+									onClick={() => {
+										setSelectedSetFilter(null);
+										setCurrentPage(1);
+									}}
+									className="px-2 py-1 text-[9px] bg-red-900/50 border border-red-700 text-red-400 rounded hover:bg-red-800 font-bold"
+								>
+									✕ CLEAR
+								</button>
+							)}
+						</div>
+					);
+				})()}
+
 				{/* Bulk Operations Buttons - Only for uninstalled inventory */}
 				<div className="flex gap-2 mb-2 px-2">
 					<button
@@ -305,6 +398,18 @@ export const Inventory: React.FC<InventoryProps> = ({
 						className="flex-1 py-2 text-xs font-bold font-pixel border-2 bg-purple-900/50 border-purple-600 text-purple-400 hover:bg-purple-800 hover:text-white transition-all cursor-pointer"
 					>
 						MERGE ALL (RECURSIVE)
+					</button>
+
+					<button
+						onClick={handleApplyBest}
+						disabled={items.length === 0}
+						className={`flex-1 py-2 text-xs font-bold font-pixel border-2 transition-all ${
+							items.length > 0
+								? 'bg-blue-900/50 border-blue-600 text-blue-400 hover:bg-blue-800 hover:text-white cursor-pointer'
+								: 'bg-gray-900 border-gray-800 text-gray-600 cursor-not-allowed'
+						}`}
+					>
+						⚡ AUTO-EQUIP BEST
 					</button>
 				</div>
 
@@ -354,7 +459,7 @@ export const Inventory: React.FC<InventoryProps> = ({
 			{/* Bottom Panel: Installed Mods */}
 			<div
 				ref={installedContainerRef}
-				className="h-1/3 bg-gray-900/90 p-4 rounded-lg relative flex flex-col overflow-hidden border-t-2 border-indigo-900/50"
+				className="h-1/2 bg-gray-900/90 p-4 rounded-lg relative flex flex-col overflow-hidden border-t-2 border-indigo-900/50"
 			>
 				<h2 className="text-lg font-bold text-indigo-400 pixel-text mb-2 flex justify-between items-center bg-indigo-900/20 p-2 rounded">
 					<span>
@@ -400,6 +505,59 @@ export const Inventory: React.FC<InventoryProps> = ({
 						REMOVE ALL
 					</button>
 				</div>
+
+				{/* Set Completion Tracker */}
+				{/* {(() => {
+					const { SetBonus } = require('@/utils/SetBonus');
+					const { ITEM_SETS } = require('@/constants');
+
+					// Get only INSTALLED item IDs (what's equipped on this car)
+					// Use Set to ensure unique IDs
+					const installedBaseIds = Array.from(
+						new Set(installedItems.map((i) => i.baseId))
+					);
+
+					// Calculate completion for each set based on installed items only
+					const setProgress = ITEM_SETS.map((set: any) => {
+						const installedCount = set.requiredItemIds.filter(
+							(id: string) => installedBaseIds.includes(id)
+						).length;
+						const total = set.requiredItemIds.length;
+						const percentage = (installedCount / total) * 100;
+						const isComplete = installedCount === total;
+
+						return {
+							set,
+							installedCount,
+							total,
+							percentage,
+							isComplete,
+						};
+					});
+
+					// Filter to sets with installed items and sort by completion percentage (highest first)
+					const setsWithProgress = setProgress
+						.filter((sp: any) => sp.installedCount > 0)
+						.sort((a: any, b: any) => b.percentage - a.percentage);
+
+					if (setsWithProgress.length === 0) return null;
+
+					return (
+						<div className="mb-2 px-2">
+							<div className="text-[9px] uppercase font-bold text-gray-500 mb-1 tracking-wider">
+								⚡ Set Progress
+							</div>
+							<div className="flex flex-col gap-1 max-h-24 overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-gray-800 [&::-webkit-scrollbar-thumb]:bg-gray-600 [&::-webkit-scrollbar-thumb]:rounded">
+								{setsWithProgress.map((setData: any) => (
+									<SetProgressItem
+										key={setData.set.id}
+										setData={setData}
+									/>
+								))}
+							</div>
+						</div>
+					);
+				})()} */}
 
 				<div className="flex-1 overflow-y-auto pr-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
 					{renderGrid(installedItems, true)}
@@ -582,6 +740,76 @@ export const Inventory: React.FC<InventoryProps> = ({
 					<p className="text-sm text-gray-200 mb-4 leading-relaxed border-b border-gray-700 pb-3 font-medium">
 						{hoveredItem.description}
 					</p>
+
+					{/* Set Information */}
+					{(() => {
+						const { SetBonus } = require('@/utils/SetBonus');
+						const itemSets = SetBonus.getSetsForItem(
+							hoveredItem.baseId
+						);
+
+						if (itemSets.length === 0) return null;
+
+						const activeSets = SetBonus.getActiveSets([
+							...installedItems,
+							...items,
+						]);
+
+						return (
+							<div className="mb-4 pb-3 border-b border-gray-700">
+								<div className="text-xs font-bold uppercase tracking-wider text-purple-400 mb-2">
+									⚡ Item Sets
+								</div>
+								{itemSets.map((set) => {
+									const isActive = activeSets.some(
+										(s) => s.id === set.id
+									);
+									const installedCount =
+										set.requiredItemIds.filter((id) =>
+											[...installedItems, ...items].some(
+												(item) => item.baseId === id
+											)
+										).length;
+
+									return (
+										<div
+											key={set.id}
+											className="mb-2 last:mb-0"
+										>
+											<div
+												className="flex items-center gap-2 mb-1"
+												style={{
+													color: isActive
+														? set.color || '#FFD700'
+														: '#666',
+												}}
+											>
+												<span className="text-xs font-bold">
+													{isActive && '✓ '}
+													{set.name}
+												</span>
+												<span className="text-[10px] text-gray-500">
+													({installedCount}/
+													{set.requiredItemIds.length}
+													)
+												</span>
+											</div>
+											{isActive && (
+												<div className="text-[10px] text-green-400 italic">
+													Set Active! Bonuses Applied
+												</div>
+											)}
+											{!isActive && (
+												<div className="text-[10px] text-gray-600">
+													{set.description}
+												</div>
+											)}
+										</div>
+									);
+								})}
+							</div>
+						);
+					})()}
 
 					<div className="space-y-1">
 						{Object.entries(hoveredItem.stats).map(

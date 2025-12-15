@@ -164,8 +164,15 @@ export const useRaceEvents = (
 
 						// Apply Driver Skills
 						const xpMult = getSkillBonus('xpGainMultiplier');
-						if (xpMult > 1) {
-							xpGain = Math.floor(xpGain * xpMult);
+
+						// Apply Set Bonuses
+						const { SetBonus } = require('../utils/SetBonus');
+						const setXpMult = SetBonus.getXPMultiplier(
+							garage[currentCarIndex]?.installedItems || []
+						);
+
+						if (xpMult > 1 || setXpMult > 1) {
+							xpGain = Math.floor(xpGain * xpMult * setXpMult);
 						}
 
 						// Store for animation
@@ -254,8 +261,17 @@ export const useRaceEvents = (
 					}
 
 					const xpMult = getSkillBonus('xpGainMultiplier');
+
+					// Apply Set Bonuses
+					const { SetBonus } = require('../utils/SetBonus');
+					const setXpMult = garage[currentCarIndex]
+						? SetBonus.getXPMultiplier(
+								garage[currentCarIndex]?.installedItems || []
+						  )
+						: 1;
+
 					playerXpGain = Math.floor(
-						baseXp * (xpMult > 0 ? xpMult : 1)
+						baseXp * (xpMult > 0 ? xpMult : 1) * setXpMult
 					);
 
 					if (isNaN(playerXpGain)) playerXpGain = 50;

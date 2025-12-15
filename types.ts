@@ -162,6 +162,23 @@ export interface InventoryItem {
 	isSpecial?: boolean;
 	specialName?: string;
 	masteryGiven?: boolean;
+	setId?: string; // Optional reference to the set this item belongs to
+}
+
+export interface ItemSet {
+	id: string;
+	name: string;
+	description: string;
+	requiredItemIds: string[]; // Base IDs of items required to complete the set
+	bonusStats: Partial<TuningState>; // Raw stat bonuses (additive)
+	bonusMultipliers?: {
+		// Multipliers applied to existing stats
+		maxTorque?: number;
+		tireGrip?: number;
+		brakingForce?: number;
+		xpGain?: number; // Bonus XP multiplier
+	};
+	color?: string; // Accent color for set UI
 }
 
 export interface Crate {

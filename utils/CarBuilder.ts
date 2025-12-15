@@ -1,5 +1,11 @@
-import { TuningState, ModNode, SavedTune, InventoryItem } from '../types';
-import { BASE_TUNING, MOD_TREE } from '../constants';
+import {
+	TuningState,
+	ModNode,
+	SavedTune,
+	InventoryItem,
+	ItemSet,
+} from '../types';
+import { BASE_TUNING, MOD_TREE, ITEM_SETS } from '../constants';
 
 export class CarBuilder {
 	/**
@@ -51,7 +57,60 @@ export class CarBuilder {
 			finalTuning.tireGrip *= perkMultiplier;
 		}
 
+		// Apply Set Bonuses
+		const activeSets = this.getActiveSets(installedItems);
+		activeSets.forEach((set) => {
+			// Apply additive bonusStats first
+			if (set.bonusStats) {
+				if (set.bonusStats.maxTorque)
+					finalTuning.maxTorque += set.bonusStats.maxTorque;
+				if (set.bonusStats.tireGrip)
+					finalTuning.tireGrip += set.bonusStats.tireGrip;
+				if (set.bonusStats.brakingForce)
+					finalTuning.brakingForce += set.bonusStats.brakingForce;
+				if (set.bonusStats.mass)
+					finalTuning.mass += set.bonusStats.mass;
+				if (set.bonusStats.dragCoefficient)
+					finalTuning.dragCoefficient +=
+						set.bonusStats.dragCoefficient;
+				if (set.bonusStats.turboIntensity)
+					finalTuning.turboIntensity += set.bonusStats.turboIntensity;
+				if (set.bonusStats.redlineRPM)
+					finalTuning.redlineRPM += set.bonusStats.redlineRPM;
+				if (set.bonusStats.flywheelMass)
+					finalTuning.flywheelMass += set.bonusStats.flywheelMass;
+			}
+
+			// Apply multiplicative bonusMultipliers after all additive bonuses
+			if (set.bonusMultipliers) {
+				if (set.bonusMultipliers.maxTorque)
+					finalTuning.maxTorque *= set.bonusMultipliers.maxTorque;
+				if (set.bonusMultipliers.tireGrip)
+					finalTuning.tireGrip *= set.bonusMultipliers.tireGrip;
+				if (set.bonusMultipliers.brakingForce)
+					finalTuning.brakingForce *=
+						set.bonusMultipliers.brakingForce;
+				// xpGain multiplier is handled separately in race results
+			}
+		});
+
 		return finalTuning;
+	}
+
+	/**
+	 * Determines which item sets are currently active based on installed items.
+	 * @param installedItems List of items currently installed on the car
+	 * @returns Array of active ItemSet objects
+	 */
+	static getActiveSets(installedItems: InventoryItem[]): ItemSet[] {
+		const installedBaseIds = installedItems.map((item) => item.baseId);
+
+		return ITEM_SETS.filter((set: ItemSet) => {
+			// Check if all required items are installed
+			return set.requiredItemIds.every((requiredId) =>
+				installedBaseIds.includes(requiredId)
+			);
+		});
 	}
 
 	/**

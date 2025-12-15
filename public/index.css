@@ -63,3 +63,25 @@
 .animate-fade-in {
 	animation: fade-in 0.3s ease-in forwards;
 }
+
+@keyframes set-glow-pulse {
+	0%,
+	100% {
+		filter: brightness(1);
+	}
+	50% {
+		filter: brightness(1.2);
+	}
+}
+
+@keyframes set-shimmer {
+	0% {
+		opacity: 0.3;
+	}
+	50% {
+		opacity: 0.6;
+	}
+	100% {
+		opacity: 0.3;
+	}
+}

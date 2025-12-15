@@ -186,7 +186,7 @@ export const GameMenu = () => {
 			const conditionFactor = (item.condition || 100) / 100;
 			xpGained = Math.floor(baseXP * mult * conditionFactor);
 		} else {
-			showToast('Mastery XP already earned for this item', 'INFO');
+			// showToast('Mastery XP already earned for this item', 'INFO');
 		}
 
 		if (!token) {

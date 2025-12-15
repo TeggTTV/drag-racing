@@ -264,11 +264,9 @@ const Dashboard: React.FC<DashboardProps> = ({
 
 			{/* Touch Data - Mobile Only (Hidden on Desktop via media query ideally, or just always present but invisible) */}
 			{/* We make them functional but invisible. z-index high but below modal overlays if any. */}
-			{onTouchControl && (
+			{/* {onTouchControl && (
 				<div className="absolute inset-0 z-[40] pointer-events-auto flex">
-					{/* Left Zone: Clutch (Bottom) / Shift Down (Top) */}
 					<div className="w-1/2 h-full flex flex-col">
-						{/* Shift Down Zone (Top 40%) */}
 						<div
 							className="h-[40%] active:bg-red-500/10"
 							onTouchStart={() =>
@@ -279,9 +277,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 							}
 						></div>
 
-						{/* Clutch/Brake Zone (Bottom 60%) */}
 						<div className="h-[60%] flex">
-							{/* Brake (Left edge) */}
 							<div
 								className="w-1/3 h-full active:bg-red-900/20"
 								onTouchStart={() =>
@@ -291,7 +287,6 @@ const Dashboard: React.FC<DashboardProps> = ({
 									onTouchControl('BRAKE', false)
 								}
 							></div>
-							{/* Clutch (Main Left) */}
 							<div
 								className="w-2/3 h-full active:bg-blue-500/10"
 								onTouchStart={() =>
@@ -304,9 +299,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 						</div>
 					</div>
 
-					{/* Right Zone: Shift Up (Top) / Gas (Bottom) */}
 					<div className="w-1/2 h-full flex flex-col">
-						{/* Shift Up Zone (Top 40%) */}
 						<div
 							className="h-[40%] active:bg-green-500/10"
 							onTouchStart={() =>
@@ -315,7 +308,6 @@ const Dashboard: React.FC<DashboardProps> = ({
 							onTouchEnd={() => onTouchControl('SHIFT_UP', false)}
 						></div>
 
-						{/* Gas Zone (Bottom 60%) */}
 						<div
 							className="h-[60%] active:bg-orange-500/10"
 							onTouchStart={() => onTouchControl('GAS', true)}
@@ -323,7 +315,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 						></div>
 					</div>
 				</div>
-			)}
+			)} */}
 		</div>
 	);
 };

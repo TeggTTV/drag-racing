@@ -12,6 +12,8 @@ interface ItemCardProps {
 	isSelected?: boolean;
 	showCondition?: boolean;
 	className?: string;
+	isInActiveSet?: boolean; // Whether this item is part of a complete set
+	activeSetColor?: string; // Color of the active set for glow effect
 }
 
 // Particle count based on rarity
@@ -69,6 +71,8 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 	isSelected = false,
 	showCondition = true,
 	className = '',
+	isInActiveSet = false,
+	activeSetColor,
 }) => {
 	// Lookup fresh sprite index from DB in case item is old
 	const def = item ? GAME_ITEMS.find((g) => g.id === item.baseId) : null;
@@ -129,6 +133,28 @@ export const ItemCard: React.FC<ItemCardProps> = ({
 					: undefined,
 			}}
 		>
+			{/* Set indicator badge */}
+			{isInActiveSet && activeSetColor && (
+				<div className="absolute top-0 right-0 w-3 h-3 pointer-events-none z-20">
+					<div
+						className="w-full h-full rounded-bl-lg"
+						style={{
+							backgroundColor: activeSetColor,
+							boxShadow: `0 0 8px ${activeSetColor}`,
+							opacity: 0.9,
+						}}
+					/>
+					<div
+						className="absolute top-0 right-0 w-full h-full"
+						style={{
+							background: `linear-gradient(135deg, ${activeSetColor} 0%, transparent 70%)`,
+							opacity: 0.3,
+							animation: 'set-shimmer 2s ease-in-out infinite',
+						}}
+					/>
+				</div>
+			)}
+
 			{/* Particle effects for rare items */}
 			{particles.map((p, i) => (
 				<div
