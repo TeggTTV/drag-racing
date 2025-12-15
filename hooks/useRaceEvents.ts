@@ -38,7 +38,8 @@ export const useRaceEvents = (
 	opponentAudioRef: React.MutableRefObject<any>,
 	raceFinishedProcessingRef: React.MutableRefObject<boolean>,
 	currentGhostRecording: React.MutableRefObject<any[]>,
-	settings: any // GameSettings
+	settings: any, // GameSettings
+	setSettings: React.Dispatch<React.SetStateAction<any>>
 ) => {
 	// Helper to calculate active bonuses
 	// Helper to calculate active bonuses
@@ -182,11 +183,21 @@ export const useRaceEvents = (
 							mXP -= nextLevelThreshold;
 							mLevel++;
 							nextLevelThreshold = (mLevel + 1) * 1000;
-							showToast(
-								`Car Mastery Level Up! LVL ${mLevel}`,
-								'UNLOCK'
-							);
-							// audioRef.current.playUISound('levelup');
+							// showToast(
+							// 	`Car Mastery Level Up! LVL ${mLevel}`,
+							// 	'UNLOCK'
+							// );
+
+							// Award Skill Point
+							setSettings((prev: any) => ({
+								...prev,
+								skills: {
+									...prev.skills,
+									points: (prev.skills?.points || 0) + 1,
+									unlocked: prev.skills?.unlocked || [],
+								},
+							}));
+							// showToast('Earned 1 Skill Point!', 'w');
 						}
 
 						// Update Car
@@ -371,36 +382,15 @@ export const useRaceEvents = (
 								setGarage((prev) => {
 									return [...prev, m.rewardCar!];
 								});
-
-								// Check current state for toast (approximation)
-								const alreadyOwned = garage.some(
-									(c) => c.id === m.rewardCar!.id
-								);
-
-								if (!alreadyOwned) {
-									showToast(
-										`YOU WON A NEW CAR: ${
-											m.rewardCar!.name
-										}!`,
-										'UNLOCK'
-									);
-								} else {
-									showToast(
-										`You already own the ${
-											m.rewardCar!.name
-										}.`,
-										'INFO'
-									);
-								}
 							}
 
 							// Underground Progression
 							if (m.difficulty === 'UNDERGROUND') {
 								setUndergroundLevel((prev) => prev + 1);
-								showToast(
-									'UNDERGROUND RANK INCREASED!',
-									'UNLOCK'
-								);
+								// showToast(
+								// 	'UNDERGROUND RANK INCREASED!',
+								// 	'UNLOCK'
+								// );
 							}
 
 							// Rival Progression
@@ -414,10 +404,10 @@ export const useRaceEvents = (
 										...prev,
 										rivalId,
 									]);
-									showToast(
-										`RIVAL DEFEATED: ${m.opponent.name}`,
-										'UNLOCK'
-									);
+									// showToast(
+									// 	`RIVAL DEFEATED: ${m.opponent.name}`,
+									// 	'UNLOCK'
+									// );
 								}
 							}
 
@@ -464,7 +454,7 @@ export const useRaceEvents = (
 						'CRITICAL ERROR IN PROCESS RACE FINISH:',
 						error
 					);
-					showToast('Race Finish Error - check console', 'ERROR');
+					// showToast('Race Finish Error - check console', 'ERROR');
 					// Force finish to stop loop
 					setRaceResult('WIN');
 					setRaceStatus('FINISHED');
@@ -534,6 +524,7 @@ export const useRaceEvents = (
 			opponentAudioRef,
 			currentGhostRecording,
 			getSkillBonus,
+			setSettings,
 		]
 	);
 

@@ -24,14 +24,15 @@ import { useRaceRenderer } from '../hooks/useRaceRenderer';
 import { useRaceSetup } from '../hooks/useRaceSetup';
 import { ItemMerge } from '../utils/ItemMerge';
 import { getFullUrl } from '../utils/prisma';
-import { ItemGenerator } from '../utils/ItemGenerator';
+import { ItemGenerator, CRATES } from '../utils/ItemGenerator';
 import { GAME_ITEMS } from '../data/GameItems';
 import { TestTrackUtils } from '../utils/TestTrackUtils';
 import Dashboard from './Dashboard';
 import { SoundProvider } from '../contexts/SoundContext';
 import { DailyRewardsModal } from './menu/DailyRewardsModal';
 import { SeasonPass } from './menu/SeasonPass';
-import { SEASON_REWARDS } from '../constants/SeasonData';
+import { SEASON_REWARDS, MAX_SEASON_XP } from '../constants/SeasonData';
+import { getSkillBonus } from '../utils/skillUtils';
 import { Preloader } from './Preloader';
 import { SavingIndicator } from './SavingIndicator';
 import { CountdownOverlay } from './race/CountdownOverlay';
@@ -194,6 +195,29 @@ const GameCanvas: React.FC = () => {
 	const [xp, setXp] = useState(0);
 	const [level, setLevel] = useState(1);
 
+	// Player Level Up Monitor
+	useEffect(() => {
+		const nextLevelXp = calculateNextLevelXp(level);
+		if (xp >= nextLevelXp) {
+			const overflow = xp - nextLevelXp;
+			setLevel((prev) => prev + 1);
+			setXp(overflow);
+
+			// Award Skill Point
+			setSettings((prev) => ({
+				...prev,
+				skills: {
+					...prev.skills,
+					points: (prev.skills?.points || 0) + 1,
+					unlocked: prev.skills?.unlocked || [],
+				},
+			}));
+
+			showToast(`LEVEL UP! REACHED LEVEL ${level + 1}`, 'UNLOCK');
+			// audioRef.current.playUISound('levelup');
+		}
+	}, [xp, level, showToast]);
+
 	// Daily Rewards State
 	const [loginStreak, setLoginStreak] = useState<LoginStreak>({
 		currentStreak: 0,
@@ -305,7 +329,8 @@ const GameCanvas: React.FC = () => {
 		setCurrentCarIndex,
 		saveGame,
 		showToast,
-		previousCarIndexRef
+		previousCarIndexRef,
+		settings
 	);
 
 	const handleMerge = useCallback(
@@ -634,7 +659,8 @@ const GameCanvas: React.FC = () => {
 		opponentAudioRef,
 		raceFinishedProcessingRef,
 		currentGhostRecording,
-		settings
+		settings,
+		setSettings
 	);
 
 	const { drawFrame, drawMenuBackground } = useRaceRenderer();
@@ -1056,8 +1082,13 @@ const GameCanvas: React.FC = () => {
 							inputsRef.current.shiftDown
 						) {
 							// Chance to miss gear: 0% at 0.9 condition, up to 30% at 0 condition
+							const shiftBonus = getSkillBonus(
+								'shiftWindowMultiplier',
+								settings
+							);
 							const failureChance =
-								(0.9 - currentCar.condition) * 0.3;
+								((0.9 - currentCar.condition) * 0.3) /
+								shiftBonus;
 							if (Math.random() < failureChance) {
 								inputsRef.current.shiftUp = false;
 								inputsRef.current.shiftDown = false;
@@ -1075,7 +1106,12 @@ const GameCanvas: React.FC = () => {
 					}
 					if (p.y >= raceDistance && phase !== 'TEST_TRACK') {
 						p.finished = true;
-						p.finishTime = (time - raceStartTimeRef.current) / 1000;
+						const rtBonus = getSkillBonus(
+							'reactionTimeBonus',
+							settings
+						);
+						p.finishTime =
+							(time - raceStartTimeRef.current) / 1000 - rtBonus;
 						setPlayerFinishTime(p.finishTime);
 						p.velocity = 0;
 						p.rpm = 1000;
@@ -1526,11 +1562,20 @@ const GameCanvas: React.FC = () => {
 									setMoney((m) => m + 1000);
 								}
 							} else if (reward.type === 'CRATE') {
-								showToast(
-									`Claimed ${reward.crateType} Crate!`,
-									'INFO'
+								const crateDef = CRATES.find(
+									(c) => c.id === reward.crateType
 								);
-								// Logic to add crate
+								if (crateDef) {
+									const newItem =
+										ItemGenerator.openCrate(crateDef);
+									setInventory((prev) => [...prev, newItem]);
+									showToast(
+										`Opened ${crateDef.name}: Got ${newItem.name}`,
+										'SUCCESS'
+									);
+								} else {
+									showToast('Crate not found', 'ERROR');
+								}
 							}
 
 							// Update progress
@@ -1555,7 +1600,7 @@ const GameCanvas: React.FC = () => {
 									isPremium: true,
 								}));
 								showToast('Premium Pass Activated!', 'SUCCESS');
-								// play('purchase');
+								audioRef.current.playUISound('purchase');
 							} else {
 								showToast(
 									'Need $10,000 for Premium Pass',

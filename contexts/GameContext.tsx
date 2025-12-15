@@ -93,6 +93,7 @@ export interface GameContextType {
 			loginStreak: LoginStreak;
 		}>
 	) => Promise<void>;
+	setShowSeasonPass: (show: boolean) => void;
 }
 
 export interface GameSettings {

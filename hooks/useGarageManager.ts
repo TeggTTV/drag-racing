@@ -1,5 +1,7 @@
 import { useCallback } from 'react';
 import { SavedTune, InventoryItem } from '../types';
+import { getSkillBonus } from '../utils/skillUtils';
+import { GameSettings } from '../contexts/GameContext';
 
 export const useGarageManager = (
 	garage: SavedTune[],
@@ -10,7 +12,8 @@ export const useGarageManager = (
 	setCurrentCarIndex: React.Dispatch<React.SetStateAction<number>>,
 	saveGame: (data: any) => void,
 	showToast: (msg: string, type: any) => void,
-	previousCarIndexRef: React.MutableRefObject<number>
+	previousCarIndexRef: React.MutableRefObject<number>,
+	settings?: GameSettings
 ) => {
 	const restoreCar = useCallback(
 		(carIndex: number) => {
@@ -30,7 +33,10 @@ export const useGarageManager = (
 
 			// Restoration Cost Formula:
 			// Full restore costs ~50% of the car's value
-			const cost = Math.floor((missing / 100) * baseValue * 0.5);
+			const multiplier = getSkillBonus('repairCostMultiplier', settings);
+			const cost = Math.floor(
+				(missing / 100) * baseValue * 0.5 * multiplier
+			);
 
 			if (money >= cost) {
 				setMoney((m) => m - cost);
@@ -46,7 +52,7 @@ export const useGarageManager = (
 				showToast(`Need $${cost} to restore!`, 'ERROR');
 			}
 		},
-		[garage, money, showToast, setMoney, setGarage, saveGame]
+		[garage, money, showToast, setMoney, setGarage, saveGame, settings]
 	);
 
 	const scrapCar = useCallback(
@@ -71,8 +77,13 @@ export const useGarageManager = (
 			const condition = car.condition || 1;
 
 			// Scrap Value: ~40% of chassis + 50% of items
+			const multiplier = getSkillBonus(
+				'salvageYieldMultiplier',
+				settings
+			);
 			const scrapValue = Math.floor(
-				baseValue * (condition / 100) * 0.4 + itemValue * 0.5
+				(baseValue * (condition / 100) * 0.4 + itemValue * 0.5) *
+					multiplier
 			);
 
 			// Add Money
@@ -102,6 +113,7 @@ export const useGarageManager = (
 			saveGame,
 			setCurrentCarIndex,
 			previousCarIndexRef,
+			settings,
 		]
 	);
 

@@ -158,7 +158,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ onClose }) => {
 	};
 
 	return (
-		<div className="fixed inset-0 bg-black/90 z-[150] flex flex-col items-center justify-center backdrop-blur-md">
+		<div className="pixel-text fixed inset-0 bg-black/90 z-[150] flex flex-col items-center justify-center backdrop-blur-md">
 			<div className="relative w-full max-w-6xl h-[85vh] bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden shadow-2xl flex flex-row font-sans">
 				{/* --- LEFT SIDEBAR (Info) --- */}
 				<div className="w-[350px] bg-slate-800/90 border-r border-slate-700 p-8 flex flex-col relative z-20 backdrop-blur-md shadow-xl">
@@ -178,7 +178,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ onClose }) => {
 					{/* Hover Details Card */}
 					<div className="flex-1 overflow-y-auto">
 						{hoverNode ? (
-							<div className="animate-slide-up space-y-4">
+							<div className="pixel-text animate-slide-up space-y-4">
 								<div
 									className={`w-16 h-16 rounded-xl flex items-center justify-center text-3xl mb-4 border-2 shadow-lg
                                     ${
@@ -197,7 +197,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ onClose }) => {
 										: '💎'}
 								</div>
 
-								<div className="pixel-text">
+								<div>
 									<h3 className="text-2xl font-bold text-white leading-none mb-1">
 										{hoverNode.name}
 									</h3>
@@ -282,7 +282,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ onClose }) => {
 
 					<button
 						onClick={onClose}
-						className="mt-6 w-full py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded shadow-lg transform active:scale-95 transition-all text-sm uppercase tracking-widest border-b-4 border-red-800"
+						className="pixel-text mt-6 w-full py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded shadow-lg transform active:scale-95 transition-all text-sm uppercase tracking-widest border-b-4 border-red-800"
 					>
 						Close
 					</button>

@@ -38,6 +38,7 @@ import { useGame } from '../contexts/GameContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getFullUrl } from '../utils/prisma';
 import { processMoneyTransaction } from '../utils/transactions';
+import { getSkillBonus } from '../utils/skillUtils';
 
 export const GameMenu = () => {
 	const {
@@ -48,20 +49,12 @@ export const GameMenu = () => {
 		playerTuning,
 		effectiveTuning,
 		setPlayerTuning,
-		ownedMods,
-		setOwnedMods,
 		missions,
 		dailyChallenges,
 		onStartMission,
-		onConfirmRace,
-		selectedMission,
-		disabledMods,
-		setDisabledMods,
 		modSettings,
 		setModSettings,
 		onLoadTune,
-		weather,
-		setWeather,
 		showToast,
 		dynoHistory,
 		setDynoHistory,
@@ -71,7 +64,6 @@ export const GameMenu = () => {
 		currentCarIndex,
 		setCurrentCarIndex,
 		undergroundLevel,
-		setUndergroundLevel,
 		onBuyMods,
 		junkyardCars,
 		onBuyJunkyardCar,
@@ -83,7 +75,6 @@ export const GameMenu = () => {
 		xp,
 		level,
 		defeatedRivals,
-		// onChallengeRival, // Removed
 		userInventory,
 		setUserInventory,
 		onMerge,
@@ -91,9 +82,9 @@ export const GameMenu = () => {
 		onTestTrack,
 		junkyardParts,
 		onBuyJunkyardPart,
-		setShowDailyRewards,
 		setShowSeasonPass,
 		setGarage,
+		settings,
 	} = useGame();
 
 	const { token, user } = useAuth();
@@ -427,9 +418,20 @@ export const GameMenu = () => {
 				// Find the listing to get the price for toast
 				const listing = activeListings.find((l) => l.id === listingId);
 				if (listing) {
-					setMoney((m) => m + listing.price);
+					// Apply Market Fee (Base 10%)
+					const feeMultiplier = getSkillBonus(
+						'marketFeeMultiplier',
+						settings
+					);
+					const baseFeeRate = 0.1;
+					const fee = Math.floor(
+						listing.price * baseFeeRate * feeMultiplier
+					);
+					const netAmount = listing.price - fee;
+
+					setMoney((m) => m + netAmount);
 					showToast(
-						`Collected $${listing.price.toLocaleString()}`,
+						`Collected $${netAmount.toLocaleString()} (Fee: $${fee.toLocaleString()})`,
 						'SUCCESS'
 					);
 					play('cash');
