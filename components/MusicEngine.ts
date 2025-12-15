@@ -315,10 +315,6 @@ export class MusicEngine {
 		this.currentTrackIndex = randomIndex;
 		this.isPlaying = true;
 
-		console.log(
-			`[MusicEngine] Playing track: ${track} (variant ${randomIndex})`
-		);
-
 		// Handle track end for non-looping tracks
 		if (!loop) {
 			source.onended = () => {

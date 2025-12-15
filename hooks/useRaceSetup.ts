@@ -77,9 +77,6 @@ export const useRaceSetup = (
 			raceStartTimeRef.current = 0;
 			currentGhostRecording.current = [];
 			raceFinishedProcessingRef.current = false;
-			console.log(
-				'🏎️ Race Setup: raceFinishedProcessingRef reset to false'
-			);
 
 			// --- Setup Environment ---
 			const seasons: Season[] = ['SPRING', 'SUMMER', 'FALL', 'WINTER'];

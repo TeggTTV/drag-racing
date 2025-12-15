@@ -5,11 +5,13 @@ import {
 	SavedTune,
 	DailyChallenge,
 	LoginStreak,
+	UserSeasonProgress,
 } from '../types';
 import { MISSIONS, BASE_TUNING } from '../constants';
 import { generateDailyChallenges } from '../utils/dailyChallengeUtils';
 import { useAuth } from '../contexts/AuthContext';
 import { getFullUrl } from '../utils/prisma';
+import { CURRENT_SEASON_ID } from '../constants/SeasonData';
 
 export const useGamePersistence = (
 	money: number,
@@ -50,7 +52,9 @@ export const useGamePersistence = (
 	settings: any, // GameSettings
 	setSettings: (s: any) => void,
 	loginStreak: LoginStreak,
-	setLoginStreak: (streak: LoginStreak) => void
+	setLoginStreak: (streak: LoginStreak) => void,
+	seasonProgress: UserSeasonProgress,
+	setSeasonProgress: (progress: UserSeasonProgress) => void
 ) => {
 	const [loaded, setLoaded] = useState(false);
 	const [isSyncing, setIsSyncing] = useState(false);
@@ -178,6 +182,22 @@ export const useGamePersistence = (
 				);
 				if (savedLoginStreak && savedLoginStreak !== 'undefined') {
 					setLoginStreak(JSON.parse(savedLoginStreak));
+				}
+
+				// Season Progress
+				const savedSeason = localStorage.getItem(
+					'shift_drift_seasonProgress'
+				);
+				if (savedSeason && savedSeason !== 'undefined') {
+					setSeasonProgress(JSON.parse(savedSeason));
+				} else {
+					setSeasonProgress({
+						seasonId: CURRENT_SEASON_ID,
+						xp: 0,
+						claimedFreeTiers: [],
+						claimedPremiumTiers: [],
+						isPremium: false,
+					});
 				}
 
 				// Garage & Current Car Logic
@@ -366,6 +386,10 @@ export const useGamePersistence = (
 					// Set Login Streak
 					if (data.loginStreak) setLoginStreak(data.loginStreak);
 
+					// Set Season Progress
+					if (data.seasonProgress)
+						setSeasonProgress(data.seasonProgress);
+
 					// Initialize Daily Challenges (Client-side generation for now, could be server-side later)
 					const newChallenges = generateDailyChallenges();
 					setDailyChallenges(newChallenges);
@@ -473,6 +497,14 @@ export const useGamePersistence = (
 		);
 	}, [loginStreak, loaded]);
 
+	useEffect(() => {
+		if (!loaded || user) return;
+		localStorage.setItem(
+			'shift_drift_seasonProgress',
+			JSON.stringify(seasonProgress)
+		);
+	}, [seasonProgress, loaded]);
+
 	// --- Server Sync Logic ---
 	// SECURITY NOTE: Money is NOT synced automatically from localStorage to prevent manipulation
 	// Money updates should only happen via secure API endpoints when earned through legitimate gameplay
@@ -542,8 +574,9 @@ export const useGamePersistence = (
 			xp,
 			settings,
 			loginStreak,
+			seasonProgress,
 		}),
-		[garage, inventory, level, xp, settings, loginStreak]
+		[garage, inventory, level, xp, settings, loginStreak, seasonProgress]
 	);
 
 	// Immediate Save Function
@@ -568,6 +601,7 @@ export const useGamePersistence = (
 				xp,
 				settings,
 				loginStreak,
+				seasonProgress,
 				// money, // DO NOT include money by default. It overwrites server state with potentially stale local state.
 				...overrides,
 			};
@@ -603,6 +637,7 @@ export const useGamePersistence = (
 			user,
 			settings,
 			loginStreak,
+			seasonProgress,
 		]
 	);
 
@@ -638,6 +673,7 @@ export const useGamePersistence = (
 							xp,
 							settings,
 							loginStreak,
+							seasonProgress,
 						}),
 					}
 				);

@@ -10,11 +10,6 @@ export default async function POST(req: NextApiRequest, res: NextApiResponse) {
 	if (req.method !== 'POST') {
 		return res.status(405).json({ message: 'Method not allowed' });
 	}
-	console.log('req', req);
-
-	// const prisma = new PrismaClient(); // Removed local instantiation
-	console.log('prisma', prisma);
-
 	const { email, password } = req.body; // Can accept username too if needed
 
 	if (!email || !password) {
@@ -22,8 +17,6 @@ export default async function POST(req: NextApiRequest, res: NextApiResponse) {
 	}
 
 	try {
-		console.log('prisma', prisma);
-
 		const user = await prisma.user.findUnique({
 			where: { email },
 		});

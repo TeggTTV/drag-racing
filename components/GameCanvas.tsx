@@ -25,10 +25,13 @@ import { useRaceSetup } from '../hooks/useRaceSetup';
 import { ItemMerge } from '../utils/ItemMerge';
 import { getFullUrl } from '../utils/prisma';
 import { ItemGenerator } from '../utils/ItemGenerator';
+import { GAME_ITEMS } from '../data/GameItems';
 import { TestTrackUtils } from '../utils/TestTrackUtils';
 import Dashboard from './Dashboard';
 import { SoundProvider } from '../contexts/SoundContext';
 import { DailyRewardsModal } from './menu/DailyRewardsModal';
+import { SeasonPass } from './menu/SeasonPass';
+import { SEASON_REWARDS } from '../constants/SeasonData';
 import { Preloader } from './Preloader';
 import { SavingIndicator } from './SavingIndicator';
 import { CountdownOverlay } from './race/CountdownOverlay';
@@ -64,9 +67,11 @@ import {
 	Season,
 	LoginStreak,
 	RaceStatus,
+	UserSeasonProgress,
 } from '../types';
 import { GameSettings } from '../contexts/GameContext';
 import { GameMenu } from './GameMenu';
+import { CURRENT_SEASON_ID } from '../constants/SeasonData';
 
 const PPM = 40; // Pixels Per Meter - Visual Scale
 
@@ -197,7 +202,18 @@ const GameCanvas: React.FC = () => {
 		totalLogins: 0,
 		rewardsClaimed: [],
 	});
+
+	// Season Progress State
+	const [seasonProgress, setSeasonProgress] = useState<UserSeasonProgress>({
+		seasonId: CURRENT_SEASON_ID,
+		xp: 0,
+		claimedFreeTiers: [],
+		claimedPremiumTiers: [],
+		isPremium: false,
+	});
+
 	const [showDailyRewards, setShowDailyRewards] = useState(false);
+	const [showSeasonPass, setShowSeasonPass] = useState(false);
 
 	// Persistence Hook
 	const {
@@ -240,7 +256,9 @@ const GameCanvas: React.FC = () => {
 		settings,
 		setSettings,
 		loginStreak,
-		setLoginStreak
+		setLoginStreak,
+		seasonProgress,
+		setSeasonProgress
 	);
 
 	const {
@@ -505,9 +523,9 @@ const GameCanvas: React.FC = () => {
 	// --- SAFETY FALLBACK: Ensure Race Result is set if Physics is Finished ---
 	useEffect(() => {
 		if (uiState.player.finished && !raceResult && raceStatus === 'RACING') {
-			console.log(
-				'🚑 Fallback: Physics finished but no result. Forcing WIN.'
-			);
+			// console.log(
+			// 	'🚑 Fallback: Physics finished but no result. Forcing WIN.'
+			// );
 			// Determine win/loss basics (simplified)
 			if (
 				uiState.opponent.finished &&
@@ -633,9 +651,9 @@ const GameCanvas: React.FC = () => {
 
 		// Hard reset of race processing flag when status becomes RACING
 		if (raceStatus === 'RACING') {
-			console.log(
-				'🏎️ GameCanvas: Hard reset of raceFinishedProcessingRef to false'
-			);
+			// console.log(
+			// 	'🏎️ GameCanvas: Hard reset of raceFinishedProcessingRef to false'
+			// );
 			raceFinishedProcessingRef.current = false;
 		}
 	}, [phase, raceStatus]);
@@ -1055,14 +1073,7 @@ const GameCanvas: React.FC = () => {
 							}
 						}
 					}
-					if (
-						p.y >= raceDistance &&
-						phase !== 'TEST_TRACK'
-						// raceStartTimeRef.current > 0
-						// &&
-						// !p.finished
-					) {
-						console.log('✅ FINISH LINE CROSSED!');
+					if (p.y >= raceDistance && phase !== 'TEST_TRACK') {
 						p.finished = true;
 						p.finishTime = (time - raceStartTimeRef.current) / 1000;
 						setPlayerFinishTime(p.finishTime);
@@ -1199,11 +1210,6 @@ const GameCanvas: React.FC = () => {
 							p.finished &&
 							(!o.finished || p.finishTime < o.finishTime)
 						) {
-							console.log(
-								'🏎️ GameCanvas: Calling processRaceFinish (WIN)',
-								p.finishTime,
-								o.finishTime
-							);
 							processRaceFinish(
 								p,
 								o,
@@ -1291,6 +1297,77 @@ const GameCanvas: React.FC = () => {
 		},
 		[currentCarIndex]
 	);
+
+	// Game Context Value (Extracted for use in Modals)
+	const gameContextValue = {
+		phase,
+		setPhase,
+		money,
+		setMoney,
+		playerTuning,
+		effectiveTuning,
+		setPlayerTuning,
+		ownedMods,
+		setOwnedMods: (mod: any) => {
+			if (!ownedMods.includes(mod.id)) {
+				setOwnedMods((prev) => [...prev, mod.id]);
+			}
+		},
+		missions,
+		dailyChallenges,
+		onStartMission: startMission,
+		onConfirmRace: confirmStartRace,
+		selectedMission: missionRef.current,
+		disabledMods,
+		setDisabledMods,
+		modSettings,
+		setModSettings,
+		onLoadTune: handleLoadTune,
+		weather,
+		setWeather,
+		showToast,
+		dynoHistory,
+		setDynoHistory,
+		previousDynoHistory,
+		onDynoRunStart: handleDynoRunStart,
+		garage,
+		setGarage,
+		currentCarIndex,
+		setCurrentCarIndex,
+		undergroundLevel,
+		setUndergroundLevel,
+		onBuyMods: buyMods,
+		junkyardCars,
+		onBuyJunkyardCar: buyJunkyardCar,
+		onRefreshJunkyard: refreshJunkyard,
+		junkyardParts,
+		onBuyJunkyardPart: buyJunkyardPart,
+		onRestoreCar: restoreCar,
+		onScrapCar: scrapCar,
+		missionSelectTab,
+		setMissionSelectTab,
+		xp,
+		level,
+		defeatedRivals,
+		userInventory: inventory,
+		setUserInventory: setInventory,
+		onMerge: handleMerge,
+		dealershipCars,
+		onBuyDealershipCar: buyDealershipCar,
+		onRefreshDealership: refreshDealership,
+		onBuyShopItem: buyShopItem,
+		onRefreshDailyShop: refreshDailyShop,
+		dailyShopItems,
+		onTestTrack: startTestTrack,
+		showDailyRewards,
+		setShowDailyRewards,
+		onManualTuningChange,
+		settings,
+		setSettings,
+		saveGame,
+		showSeasonPass,
+		setShowSeasonPass,
+	};
 
 	return (
 		<div className="relative w-full h-full bg-black overflow-hidden font-sans select-none">
@@ -1397,97 +1474,99 @@ const GameCanvas: React.FC = () => {
 				<SoundProvider
 					play={(type) => audioRef.current.playUISound(type)}
 				>
-					<GameProvider
-						value={{
-							phase,
-							setPhase,
-							money,
-							setMoney,
-							playerTuning,
-							effectiveTuning,
-							setPlayerTuning,
-							ownedMods,
-							setOwnedMods: (mod) => {
-								if (!ownedMods.includes(mod.id)) {
-									setOwnedMods((prev) => [...prev, mod.id]);
-								}
-							},
-							missions,
-							dailyChallenges,
-							onStartMission: startMission,
-							onConfirmRace: confirmStartRace,
-							selectedMission: missionRef.current,
-							disabledMods,
-							setDisabledMods,
-							modSettings,
-							setModSettings,
-							onLoadTune: handleLoadTune,
-							weather,
-							setWeather,
-							showToast,
-							dynoHistory,
-							setDynoHistory,
-							previousDynoHistory,
-							onDynoRunStart: handleDynoRunStart,
-							garage,
-							setGarage,
-							currentCarIndex,
-							setCurrentCarIndex: setCurrentCarIndex,
-							undergroundLevel,
-							setUndergroundLevel,
-							onBuyMods: buyMods,
-							junkyardCars,
-							onBuyJunkyardCar: buyJunkyardCar,
-							onRefreshJunkyard: refreshJunkyard,
-							junkyardParts,
-							onBuyJunkyardPart: buyJunkyardPart,
-							onRestoreCar: restoreCar,
-							onScrapCar: scrapCar,
-							missionSelectTab,
-							setMissionSelectTab,
-							xp,
-							level,
-							defeatedRivals,
-							// onChallengeRival: handleChallengeRival, // Removed
-							userInventory: inventory,
-							setUserInventory: setInventory,
-							onMerge: handleMerge,
-							dealershipCars,
-							onBuyDealershipCar: buyDealershipCar,
-							onRefreshDealership: refreshDealership,
-							onBuyShopItem: buyShopItem,
-							onRefreshDailyShop: refreshDailyShop,
-							dailyShopItems,
-							onTestTrack: startTestTrack,
-							showDailyRewards,
-							setShowDailyRewards,
-							onManualTuningChange: (tuning) => {
-								if (garage[currentCarIndex]) {
-									const updatedCar = {
-										...garage[currentCarIndex],
-										manualTuning: {
-											...garage[currentCarIndex]
-												.manualTuning,
-											...tuning,
-										},
-									};
-									const newGarage = [...garage];
-									newGarage[currentCarIndex] = updatedCar;
-									setGarage(newGarage);
-									// Pending tuning ref update handled by effect
-								}
-							},
-							settings,
-							setSettings,
-							saveGame,
-						}}
-					>
+					<GameProvider value={gameContextValue}>
 						<GameMenu />
 					</GameProvider>
 				</SoundProvider>
 			)}
 
 			{/* Daily Rewards Modal */}
+			{/* Season Pass Modal */}
+			{showSeasonPass && (
+				<GameProvider value={gameContextValue}>
+					<SeasonPass
+						progress={seasonProgress}
+						onClaim={(tier, isPremium) => {
+							// Logic to claim reward
+							const rewardList = SEASON_REWARDS.find(
+								(r) => r.tier === tier
+							);
+							if (!rewardList) return;
+
+							const reward = isPremium
+								? rewardList.premiumReward
+								: rewardList.freeReward;
+							if (!reward) return;
+
+							// Add reward to player
+							if (reward.type === 'MONEY') {
+								setMoney((m) => m + (reward.amount || 0));
+							} else if (reward.type === 'XP') {
+								setXp((x) => x + (reward.amount || 0));
+							} else if (
+								reward.type === 'ITEM' &&
+								reward.itemId
+							) {
+								const itemDef = GAME_ITEMS.find(
+									(i) => i.id === reward.itemId
+								);
+								if (itemDef) {
+									const newItem =
+										ItemGenerator.generateItem(itemDef);
+									if (reward.itemRarity) {
+										newItem.rarity = reward.itemRarity;
+									}
+									setInventory((prev) => [...prev, newItem]);
+									showToast(
+										`Claimed ${newItem.name}!`,
+										'SUCCESS'
+									);
+								} else {
+									showToast(`Item not found, +$1000`, 'INFO');
+									setMoney((m) => m + 1000);
+								}
+							} else if (reward.type === 'CRATE') {
+								showToast(
+									`Claimed ${reward.crateType} Crate!`,
+									'INFO'
+								);
+								// Logic to add crate
+							}
+
+							// Update progress
+							setSeasonProgress((prev) => ({
+								...prev,
+								claimedFreeTiers: isPremium
+									? prev.claimedFreeTiers
+									: [...prev.claimedFreeTiers, tier],
+								claimedPremiumTiers: isPremium
+									? [...prev.claimedPremiumTiers, tier]
+									: prev.claimedPremiumTiers,
+							}));
+
+							showToast('Reward Claimed!', 'SUCCESS');
+						}}
+						onClose={() => setShowSeasonPass(false)}
+						onBuyPremium={() => {
+							if (money >= 10000) {
+								setMoney((m) => m - 10000);
+								setSeasonProgress((prev) => ({
+									...prev,
+									isPremium: true,
+								}));
+								showToast('Premium Pass Activated!', 'SUCCESS');
+								// play('purchase');
+							} else {
+								showToast(
+									'Need $10,000 for Premium Pass',
+									'ERROR'
+								);
+							}
+						}}
+					/>
+				</GameProvider>
+			)}
+
 			{showDailyRewards && (
 				<DailyRewardsModal
 					loginStreak={loginStreak}

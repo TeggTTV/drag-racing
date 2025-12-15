@@ -44,10 +44,6 @@ export const useRaceEvents = (
 	// Helper to calculate active bonuses
 	const getSkillBonus = useCallback(
 		(stat: string) => {
-			console.log(
-				`DEBUG SKILL BONUS: Checking ${stat}`,
-				settings?.skills?.unlocked
-			);
 			if (
 				!settings ||
 				!settings.skills ||
@@ -251,10 +247,6 @@ export const useRaceEvents = (
 						baseXp * (xpMult > 0 ? xpMult : 1)
 					);
 
-					console.log(
-						`🏁 XP Debug: Base=${baseXp}, Mult=${xpMult}, Gain=${playerXpGain}, CurrentXP=${xp}`
-					);
-
 					if (isNaN(playerXpGain)) playerXpGain = 50;
 
 					// Store final gain to be used by UI (Hack: piggyback on lastRaceMastery or add new state?
@@ -371,9 +363,6 @@ export const useRaceEvents = (
 
 							// Use the unified playerXpGain
 							const finalXp = (xp || 0) + playerXpGain;
-							console.log(
-								`🏁 Saving XP: ${xp} + ${playerXpGain} = ${finalXp}`
-							);
 							setXp(finalXp);
 							saveGame({ xp: finalXp });
 

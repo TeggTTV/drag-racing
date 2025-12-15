@@ -31,7 +31,6 @@ export const ShopHub: React.FC = () => {
 
 	// Crate Handlers
 	const handleBuyCrate = async (crate: Crate, amount: number) => {
-		console.log('[SHOP] handleBuyCrate called for:', crate.name);
 		// Validation check
 		if (money < crate.price * amount) {
 			showToast?.('Not enough money!', 'ERROR');
@@ -49,8 +48,6 @@ export const ShopHub: React.FC = () => {
 		setIsPurchasing(true);
 
 		try {
-			console.log('[SHOP] Purchasing crate:', crate.id, 'x', amount);
-
 			const response = await fetch(getFullUrl('/api/shop/crates'), {
 				method: 'POST',
 				headers: {
@@ -66,21 +63,13 @@ export const ShopHub: React.FC = () => {
 			});
 
 			const data = await response.json();
-			console.log('[SHOP] Purchase response:', data);
-
 			if (response.ok) {
 				// Update local money state with the new balance from the server
 				setMoney(data.newBalance);
-				console.log(
-					'[SHOP] Purchase successful! New balance:',
-					data.newBalance
-				);
 			} else {
-				console.error('[SHOP] Purchase failed:', data);
 				showToast?.(data.message || 'Purchase failed', 'ERROR');
 			}
 		} catch (error) {
-			console.error('Error purchasing crate:', error);
 			showToast?.('Network error. Please try again.', 'ERROR');
 		} finally {
 			setIsPurchasing(false);

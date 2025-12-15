@@ -92,6 +92,7 @@ export const GameMenu = () => {
 		junkyardParts,
 		onBuyJunkyardPart,
 		setShowDailyRewards,
+		setShowSeasonPass,
 		setGarage,
 	} = useGame();
 
@@ -773,6 +774,18 @@ export const GameMenu = () => {
 								>
 									SHOP
 								</button>
+								{/* <button
+									onClick={() => {
+										setShowSeasonPass(true);
+									}}
+									className="pixel-btn text-center py-4 text-lg bg-yellow-600 border-yellow-400 text-yellow-100 hover:bg-yellow-500"
+									style={{
+										backgroundColor: '#ca8a04', // yellow-600
+										borderColor: '#facc15', // yellow-400
+									}}
+								>
+									SEASON PASS
+								</button> */}
 								<button
 									onClick={() => {
 										setPhase('AUCTION');

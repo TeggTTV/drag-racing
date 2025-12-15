@@ -36,7 +36,6 @@ export const useOnlineRace = (
 	// Online Race Trigger
 	useEffect(() => {
 		if (party?.activeRaceId && phase !== 'ONLINE_RACE') {
-			console.log('🏎️ Starting Online Race!');
 			setPhase('ONLINE_RACE');
 
 			// Setup dummy mission for renderer

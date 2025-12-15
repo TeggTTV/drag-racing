@@ -344,3 +344,18 @@ export interface AuctionListing {
 	listedAt: number;
 	status: 'ACTIVE' | 'SOLD' | 'EXPIRED';
 }
+
+export interface SeasonPassReward {
+	tier: number; // 1-50
+	requiredXP: number;
+	freeReward: DailyReward;
+	premiumReward?: DailyReward;
+}
+
+export interface UserSeasonProgress {
+	seasonId: string;
+	xp: number; // Season XP distinct from Player XP?
+	claimedFreeTiers: number[];
+	claimedPremiumTiers: number[];
+	isPremium: boolean;
+}

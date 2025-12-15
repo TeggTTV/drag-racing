@@ -83,8 +83,8 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ onClose }) => {
 	const SCALE_Y = 140;
 	// Center the tree relative to the container center plus pan
 	// Default center offset adjusted to center 'driver_root' (0,0) comfortably
-	const CENTER_X = 800 + pan.x;
-	const CENTER_Y = 600 + pan.y;
+	const CENTER_X = 400 + pan.x;
+	const CENTER_Y = 500 + pan.y;
 
 	// Helper: Check unlock status
 	const isUnlocked = (id: string) => unlocked.includes(id);

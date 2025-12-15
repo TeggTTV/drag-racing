@@ -1,10 +1,11 @@
-import React from 'react';
-import { DailyReward, LoginStreak } from '../../types';
-import { getRewardForDay } from '../../constants/DailyRewards';
+import React, { useState } from 'react';
+import { LoginStreak } from '../../types';
+import { SpinWheel, WheelReward } from './SpinWheel';
+import { WHEEL_REWARDS, pickWeightedReward } from '../../constants/WheelData';
 
 interface DailyRewardsModalProps {
 	loginStreak: LoginStreak;
-	onClaim: () => void;
+	onClaim: (reward?: WheelReward) => void;
 	onClose: () => void;
 }
 
@@ -13,177 +14,133 @@ export const DailyRewardsModal: React.FC<DailyRewardsModalProps> = ({
 	onClaim,
 	onClose,
 }) => {
-	const currentDay = loginStreak.currentStreak;
-	const canClaim = !loginStreak.rewardsClaimed.includes(currentDay);
+	const [spinning, setSpinning] = useState(false);
+	const [result, setResult] = useState<WheelReward | null>(null);
+	const [claimed, setClaimed] = useState(false);
 
-	const getRewardIcon = (reward: DailyReward) => {
-		switch (reward.type) {
-			case 'MONEY':
-				return '💰';
-			case 'XP':
-				return '⭐';
-			case 'ITEM':
-				return '🔧';
-			case 'CRATE':
-				return '📦';
-			default:
-				return '🎁';
-		}
+	const handleSpin = () => {
+		if (spinning || claimed) return;
+
+		const reward = pickWeightedReward();
+		setResult(reward);
+		setSpinning(true);
 	};
 
-	const getRewardDescription = (reward: DailyReward) => {
-		switch (reward.type) {
-			case 'MONEY':
-				return `$${reward.amount?.toLocaleString()}`;
-			case 'XP':
-				return `${reward.amount} XP`;
-			case 'ITEM':
-				return reward.itemRarity || 'ITEM';
-			case 'CRATE':
-				return reward.crateType || 'CRATE';
-			default:
-				return 'Reward';
-		}
+	const handleSpinComplete = () => {
+		setSpinning(false);
+		setClaimed(true);
+		// Wait a moment for the user to see the result
+		setTimeout(() => {
+			onClaim(result!);
+			onClose();
+		}, 1500);
 	};
-
-	const getRarityColor = (rarity?: string) => {
-		switch (rarity) {
-			case 'UNCOMMON':
-				return 'text-green-400';
-			case 'RARE':
-				return 'text-blue-400';
-			case 'EPIC':
-				return 'text-purple-400';
-			case 'LEGENDARY':
-				return 'text-yellow-400';
-			case 'PREMIUM':
-				return 'text-blue-400';
-			case 'ELITE':
-				return 'text-purple-400';
-			default:
-				return 'text-gray-300';
-		}
-	};
-
-	const handleDayClick = (day: number) => {
-		if (day === currentDay && canClaim) {
-			onClaim();
-		}
-	};
-
-	// Show 14 days: current day and next 13
-	const daysToShow = 14;
-	const startDay = currentDay;
 
 	return (
-		<div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[200] p-4">
-			<div className="bg-gradient-to-b from-gray-900 to-black border-2 border-yellow-500/50 rounded-lg max-w-4xl w-full p-6 shadow-2xl">
+		<div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[200] p-4 backdrop-blur-md">
+			{/* Close Button (Top Right) */}
+			<button
+				onClick={onClose}
+				className="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors"
+			>
+				<svg
+					className="w-8 h-8"
+					fill="none"
+					stroke="currentColor"
+					viewBox="0 0 24 24"
+				>
+					<path
+						strokeLinecap="round"
+						strokeLinejoin="round"
+						strokeWidth="2"
+						d="M6 18L18 6M6 6l12 12"
+					/>
+				</svg>
+			</button>
+
+			<div className="flex flex-col items-center justify-center space-y-8 max-w-4xl w-full">
 				{/* Header */}
-				<div className="text-center mb-6">
-					<h2 className="text-5xl font-black text-yellow-400 mb-2 font-pixel tracking-wider">
-						DAILY LOGIN REWARDS
+				<div className="text-center space-y-2">
+					<h2 className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600 font-pixel tracking-wider drop-shadow-[0_4px_0_rgba(0,0,0,0.5)]">
+						DAILY SPIN
 					</h2>
+					<p className="text-xl text-yellow-100/80 font-mono">
+						Current Streak:{' '}
+						<span className="text-yellow-400 font-bold">
+							{loginStreak.currentStreak} Days
+						</span>
+					</p>
 				</div>
 
-				{/* Rewards Grid */}
-				<div className="mb-6">
-					<div className="grid grid-cols-7 gap-3">
-						{[...Array(daysToShow)].map((_, i) => {
-							const day = startDay + i;
-							const reward = getRewardForDay(day);
-							const isClaimed =
-								loginStreak.rewardsClaimed.includes(day);
-							const isCurrentDay = day === currentDay;
-							const isClaimable = isCurrentDay && canClaim;
+				{/* The Wheel */}
+				<div className="relative transform scale-90 md:scale-100">
+					<SpinWheel
+						rewards={WHEEL_REWARDS}
+						onComplete={handleSpinComplete}
+						spinning={spinning}
+						result={result}
+					/>
 
-							return (
-								<button
-									key={i}
-									onClick={() => handleDayClick(day)}
-									disabled={!isClaimable}
-									className={`
-										relative p-4 rounded-lg text-center transition-all
-										${
-											isClaimable
-												? 'bg-gradient-to-br from-yellow-900/50 to-orange-900/50 border-2 border-yellow-400 shadow-lg shadow-yellow-500/50 hover:scale-105 cursor-pointer animate-pulse'
-												: isClaimed
-												? 'bg-gray-800/30 border border-green-500/50'
-												: 'bg-gray-800/50 border border-gray-600'
-										}
-									`}
-								>
-									{/* Day Number */}
-									<div
-										className={`text-xs mb-2 font-pixel ${
-											isClaimable
-												? 'text-yellow-300'
-												: isClaimed
-												? 'text-green-400'
-												: 'text-gray-500'
-										}`}
-									>
-										Day {day}
+					{/* Result Overlay (Post-Spin) */}
+					{claimed && result && (
+						<div className="absolute inset-0 flex items-center justify-center z-50 animate-bounce-in">
+							<div className="bg-black/90 p-8 rounded-2xl border-4 border-yellow-500 shadow-[0_0_50px_rgba(251,191,36,0.5)] text-center">
+								<div className="text-sm text-slate-400 uppercase tracking-widest mb-2">
+									You Won
+								</div>
+								<div className="text-5xl font-black text-white mb-2">
+									{result.label}
+								</div>
+								{result.icon && (
+									<div className="text-6xl my-4">
+										{result.icon}
 									</div>
-
-									{/* Icon */}
-									<div className="text-4xl mb-2">
-										{getRewardIcon(reward)}
-									</div>
-
-									{/* Description */}
-									<div
-										className={`text-xs font-bold ${
-											isClaimable
-												? getRarityColor(
-														reward.itemRarity ||
-															reward.crateType
-												  )
-												: isClaimed
-												? 'text-gray-400'
-												: getRarityColor(
-														reward.itemRarity ||
-															reward.crateType
-												  )
-										}`}
-									>
-										{getRewardDescription(reward)}
-									</div>
-
-									{/* Claimed Checkmark */}
-									{isClaimed && (
-										<div className="absolute top-1 right-1 text-green-400 text-lg">
-											✓
-										</div>
-									)}
-
-									{/* Click to Claim indicator */}
-									{isClaimable && (
-										<div className="absolute -top-2 -right-2 bg-yellow-500 text-black text-xs font-bold px-2 py-1 rounded-full animate-bounce">
-											CLAIM!
-										</div>
-									)}
-								</button>
-							);
-						})}
-					</div>
+								)}
+							</div>
+						</div>
+					)}
 				</div>
 
-				{/* Helper Text */}
-				{canClaim && (
-					<div className="text-center mb-4">
-						<p className="text-yellow-300 font-pixel text-sm animate-pulse">
-							Click on Day {currentDay} to claim your reward!
-						</p>
+				{/* Controls */}
+				{!spinning && !claimed && (
+					<button
+						onClick={handleSpin}
+						className="group relative px-12 py-6 bg-gradient-to-b from-red-500 to-red-700 text-white font-black text-3xl rounded-full shadow-[0_10px_0_rgb(153,27,27)] active:shadow-none active:translate-y-2 transition-all hover:scale-105 uppercase tracking-widest"
+					>
+						<span className="drop-shadow-md">SPIN!</span>
+
+						{/* Button Glow */}
+						<div className="absolute inset-0 rounded-full bg-red-500 blur-xl opacity-20 group-hover:opacity-40 transition-opacity"></div>
+					</button>
+				)}
+
+				{/* Spinning Status */}
+				{spinning && (
+					<div className="text-2xl font-bold text-yellow-400 animate-pulse">
+						SPINNING...
 					</div>
 				)}
 
-				{/* Close Button */}
-				<button
-					onClick={onClose}
-					className="w-full py-3 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded pixel-btn"
-				>
-					CLOSE
-				</button>
+				{/* Reward List (Mini) */}
+				{!spinning && !claimed && (
+					<div className="flex gap-4 opacity-50 text-xs">
+						{WHEEL_REWARDS.map((r) => (
+							<div
+								key={r.id}
+								className="flex flex-col items-center"
+							>
+								<div
+									className="w-3 h-3 rounded-full mb-1"
+									style={{ backgroundColor: r.color }}
+								></div>
+								<span className="text-slate-400">
+									{r.label}
+								</span>
+							</div>
+						)).slice(0, 5)}
+						{/* Show first 5 or so */}
+					</div>
+				)}
 			</div>
 		</div>
 	);
