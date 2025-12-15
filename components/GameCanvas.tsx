@@ -213,7 +213,7 @@ const GameCanvas: React.FC = () => {
 				},
 			}));
 
-			showToast(`LEVEL UP! REACHED LEVEL ${level + 1}`, 'UNLOCK');
+			// showToast(`LEVEL UP! REACHED LEVEL ${level + 1}`, 'UNLOCK');
 			// audioRef.current.playUISound('levelup');
 		}
 	}, [xp, level, showToast]);

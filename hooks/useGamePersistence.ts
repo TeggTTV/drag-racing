@@ -125,7 +125,7 @@ export const useGamePersistence = (
 					setUndergroundLevel(parseInt(savedUndergroundLevel));
 				}
 
-				// XP & Level
+				// XP & Level - Only load from localStorage when OFFLINE
 				const savedXp = localStorage.getItem('shift_drift_xp');
 				if (savedXp && savedXp !== 'undefined') {
 					const parsed = parseInt(savedXp);
@@ -311,15 +311,53 @@ export const useGamePersistence = (
 						setDisabledMods(initialCar.disabledMods);
 						setModSettings(initialCar.modSettings);
 					} else {
-						// New Game
-						setGarage([]);
+						// New Game - Create starter car
+						console.log(
+							'No garage found in localStorage, creating starter car'
+						);
+						const starterCar: SavedTune = {
+							id: 'starter_car',
+							name: 'Civic 99 (Starter)',
+							date: Date.now(),
+							ownedMods: [],
+							disabledMods: [],
+							modSettings: {},
+							manualTuning: BASE_TUNING,
+							condition: 100,
+							installedItems: [],
+							originalPrice: 5000,
+							rarity: 'COMMON',
+						};
+						setGarage([starterCar]);
 						setCurrentCarIndex(0);
+						setOwnedMods([]);
+						setDisabledMods([]);
+						setModSettings({});
+						setPlayerTuning(BASE_TUNING);
 					}
 				}
 
 				setLoaded(true);
 			} catch (e) {
 				console.error('Failed to load game state', e);
+				// Create a minimal working state so the game can continue
+				const starterCar: SavedTune = {
+					id: 'starter_car',
+					name: 'Civic 99 (Starter)',
+					date: Date.now(),
+					ownedMods: [],
+					disabledMods: [],
+					modSettings: {},
+					manualTuning: BASE_TUNING,
+					condition: 100,
+					installedItems: [],
+					originalPrice: 5000,
+					rarity: 'COMMON',
+				};
+				setGarage([starterCar]);
+				setCurrentCarIndex(0);
+				setInventory([]);
+				setLoaded(true);
 			}
 		};
 
@@ -328,7 +366,9 @@ export const useGamePersistence = (
 
 			// prevent overwriting optimistic updates if we just saved
 			if (Date.now() - lastSyncRef.current < 5000) {
-				// console.log('Skipping server load due to recent save');
+				console.log('Skipping server load due to recent save');
+				// Still set loaded to true so the game can continue
+				setLoaded(true);
 				return;
 			}
 
@@ -352,18 +392,25 @@ export const useGamePersistence = (
 					// Set Money
 					if (data.money !== undefined) setMoney(data.money);
 
-					// Set XP & Level
+					// Set XP & Level - Server is source of truth for logged-in users
 					if (data.xp !== undefined) setXp(data.xp);
 					if (data.level !== undefined) setLevel(data.level);
 
-					// Set Inventory
-					if (data.inventory) setInventory(data.inventory);
+					// Set Inventory - Always set it, even if empty array
+					if (data.inventory !== undefined) {
+						setInventory(data.inventory);
+					} else {
+						// Fallback to empty array if inventory is missing
+						console.warn(
+							'Server data missing inventory, defaulting to empty array'
+						);
+						setInventory([]);
+					}
 
-					// Set Garage
-					if (data.garage) {
-						setGarage(data.garage);
-						// Default to first car if garage exists
+					// Set Garage - Critical: Always ensure user has at least one car
+					if (data.garage && Array.isArray(data.garage)) {
 						if (data.garage.length > 0) {
+							setGarage(data.garage);
 							setCurrentCarIndex(0);
 							const activeCar = data.garage[0];
 							setOwnedMods(activeCar.ownedMods || []);
@@ -374,11 +421,60 @@ export const useGamePersistence = (
 								...(activeCar.manualTuning || {}),
 							}));
 						} else {
-							// Handle empty garage on server (shouldn't happen for established players but possible for new ones)
-							setGarage([]);
+							// Empty garage from server - create starter car
+							console.warn(
+								'Server returned empty garage, creating starter car'
+							);
+							const starterCar: SavedTune = {
+								id: 'starter_car',
+								name: 'Civic 99 (Starter)',
+								date: Date.now(),
+								ownedMods: [],
+								disabledMods: [],
+								modSettings: {},
+								manualTuning: BASE_TUNING,
+								condition: 100,
+								installedItems: [],
+								originalPrice: 5000,
+								rarity: 'COMMON',
+							};
+							setGarage([starterCar]);
 							setCurrentCarIndex(0);
+							setOwnedMods([]);
+							setDisabledMods([]);
+							setModSettings({});
+							setPlayerTuning(BASE_TUNING);
 						}
+					} else {
+						// Garage field missing from server - create starter car
+						console.warn(
+							'Server data missing garage, creating starter car'
+						);
+						const starterCar: SavedTune = {
+							id: 'starter_car',
+							name: 'Civic 99 (Starter)',
+							date: Date.now(),
+							ownedMods: [],
+							disabledMods: [],
+							modSettings: {},
+							manualTuning: BASE_TUNING,
+							condition: 100,
+							installedItems: [],
+							originalPrice: 5000,
+							rarity: 'COMMON',
+						};
+						setGarage([starterCar]);
+						setCurrentCarIndex(0);
+						setOwnedMods([]);
+						setDisabledMods([]);
+						setModSettings({});
+						setPlayerTuning(BASE_TUNING);
 					}
+
+					// Set Dyno History
+					if (data.dynoHistory) setDynoHistory(data.dynoHistory);
+					if (data.previousDynoHistory)
+						setPreviousDynoHistory(data.previousDynoHistory);
 
 					// Set Settings
 					if (data.settings) setSettings(data.settings);
@@ -395,16 +491,59 @@ export const useGamePersistence = (
 					setDailyChallenges(newChallenges);
 
 					setLoaded(true);
+				} else {
+					console.error(
+						'Failed to load from server, response not OK:',
+						res.status,
+						res.statusText
+					);
+					// Create a minimal working state so the game can continue
+					const starterCar: SavedTune = {
+						id: 'starter_car',
+						name: 'Civic 99 (Starter)',
+						date: Date.now(),
+						ownedMods: [],
+						disabledMods: [],
+						modSettings: {},
+						manualTuning: BASE_TUNING,
+						condition: 100,
+						installedItems: [],
+						originalPrice: 5000,
+						rarity: 'COMMON',
+					};
+					setGarage([starterCar]);
+					setCurrentCarIndex(0);
+					setInventory([]);
+					setLoaded(true);
 				}
 			} catch (e) {
 				console.error('Failed to load from server', e);
-				// Fallback? Or just stay in loading state?
+				// Create a minimal working state so the game can continue
+				const starterCar: SavedTune = {
+					id: 'starter_car',
+					name: 'Civic 99 (Starter)',
+					date: Date.now(),
+					ownedMods: [],
+					disabledMods: [],
+					modSettings: {},
+					manualTuning: BASE_TUNING,
+					condition: 100,
+					installedItems: [],
+					originalPrice: 5000,
+					rarity: 'COMMON',
+				};
+				setGarage([starterCar]);
+				setCurrentCarIndex(0);
+				setInventory([]);
+				setLoaded(true);
 			}
 		};
 
-		if (user) {
+		if (user && token) {
+			// When logged in, ONLY load from server
 			loadFromServer();
 		} else {
+			// When offline, load from localStorage
 			loadFromLocalStorage();
 		}
 	}, [user?.id, token]);
@@ -575,8 +714,20 @@ export const useGamePersistence = (
 			settings,
 			loginStreak,
 			seasonProgress,
+			dynoHistory,
+			previousDynoHistory,
 		}),
-		[garage, inventory, level, xp, settings, loginStreak, seasonProgress]
+		[
+			garage,
+			inventory,
+			level,
+			xp,
+			settings,
+			loginStreak,
+			seasonProgress,
+			dynoHistory,
+			previousDynoHistory,
+		]
 	);
 
 	// Immediate Save Function
@@ -602,6 +753,8 @@ export const useGamePersistence = (
 				settings,
 				loginStreak,
 				seasonProgress,
+				dynoHistory,
+				previousDynoHistory,
 				// money, // DO NOT include money by default. It overwrites server state with potentially stale local state.
 				...overrides,
 			};
@@ -638,6 +791,8 @@ export const useGamePersistence = (
 			settings,
 			loginStreak,
 			seasonProgress,
+			dynoHistory,
+			previousDynoHistory,
 		]
 	);
 
@@ -674,6 +829,8 @@ export const useGamePersistence = (
 							settings,
 							loginStreak,
 							seasonProgress,
+							dynoHistory,
+							previousDynoHistory,
 						}),
 					}
 				);

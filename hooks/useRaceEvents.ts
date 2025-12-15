@@ -289,11 +289,6 @@ export const useRaceEvents = (
 									setMoney(result.newBalance);
 								})
 								.catch((err) => {
-									console.error('Transaction failed:', err);
-									showToast(
-										'Failed to process race payout',
-										'ERROR'
-									);
 									setMoney((prev) => prev + onlinePayout);
 								});
 						} else {
@@ -356,15 +351,6 @@ export const useRaceEvents = (
 										setMoney(result.newBalance);
 									})
 									.catch((err) => {
-										console.error(
-											'Transaction failed:',
-											err
-										);
-										showToast(
-											'Failed to process race payout',
-											'ERROR'
-										);
-										// Fallback to local update
 										setMoney((prev) => prev + totalPayout);
 									});
 							} else {
@@ -483,9 +469,6 @@ export const useRaceEvents = (
 							setMoney(result.newBalance);
 						})
 						.catch((err) => {
-							console.error('Transaction failed:', err);
-							showToast('Failed to process race loss', 'ERROR');
-							// Fallback to local update
 							setMoney((prev) =>
 								Math.max(0, prev - currentWager)
 							);
