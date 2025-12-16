@@ -361,6 +361,15 @@ export const Garage: React.FC<GarageProps> = ({
 							onLoadTune={onLoadTune}
 							onBuyMods={onBuyMods}
 							money={money}
+							baseTuning={
+								garage[currentCarIndex]
+									? {
+											...BASE_TUNING,
+											...garage[currentCarIndex]
+												.manualTuning,
+									  }
+									: BASE_TUNING
+							}
 						/>
 					) : activeTab === 'DYNO' ? (
 						<DynoTab

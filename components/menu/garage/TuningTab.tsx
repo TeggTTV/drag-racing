@@ -15,6 +15,7 @@ interface TuningTabProps {
 	onLoadTune: (tune: SavedTune) => void;
 	onBuyMods: (mods: ModNode[]) => void;
 	money: number;
+	baseTuning: TuningState;
 }
 
 const TuningTab: React.FC<TuningTabProps> = ({
@@ -27,6 +28,7 @@ const TuningTab: React.FC<TuningTabProps> = ({
 	onLoadTune,
 	onBuyMods,
 	money,
+	baseTuning,
 }) => {
 	const { play } = useSound();
 	const { onManualTuningChange } = useGame();
@@ -180,6 +182,407 @@ const TuningTab: React.FC<TuningTabProps> = ({
 			</h3>
 
 			<div className="space-y-4">
+				{/* Statistics Overview */}
+				<div className="mt-6">
+					<label className="text-xs text-gray-500 block mb-3 font-bold">
+						STATISTICS OVERVIEW
+					</label>
+					<div className="bg-black/40 p-4 rounded border border-gray-800 pixel-panel">
+						<div className="grid grid-cols-2 gap-3">
+							{/* Engine Stats */}
+							<div className="space-y-1">
+								<div className="text-[10px] text-cyan-400 font-bold uppercase mb-2">
+									Engine
+								</div>
+								<div className="text-xs text-gray-300 font-mono">
+									Max Torque:{' '}
+									{playerTuning.maxTorque.toFixed(0)}{' '}
+									{playerTuning.maxTorque !==
+										baseTuning.maxTorque && (
+										<span
+											className={
+												playerTuning.maxTorque >
+												baseTuning.maxTorque
+													? 'text-green-400'
+													: 'text-red-400'
+											}
+										>
+											(
+											{playerTuning.maxTorque >
+											baseTuning.maxTorque
+												? '+'
+												: ''}
+											{(
+												playerTuning.maxTorque -
+												baseTuning.maxTorque
+											).toFixed(0)}
+											)
+										</span>
+									)}
+								</div>
+								<div className="text-xs text-gray-300 font-mono">
+									Redline RPM:{' '}
+									{playerTuning.redlineRPM.toFixed(0)}{' '}
+									{playerTuning.redlineRPM !==
+										baseTuning.redlineRPM && (
+										<span
+											className={
+												playerTuning.redlineRPM >
+												baseTuning.redlineRPM
+													? 'text-green-400'
+													: 'text-red-400'
+											}
+										>
+											(
+											{playerTuning.redlineRPM >
+											baseTuning.redlineRPM
+												? '+'
+												: ''}
+											{(
+												playerTuning.redlineRPM -
+												baseTuning.redlineRPM
+											).toFixed(0)}
+											)
+										</span>
+									)}
+								</div>
+								<div className="text-xs text-gray-300 font-mono">
+									Idle RPM: {playerTuning.idleRPM.toFixed(0)}{' '}
+									{playerTuning.idleRPM !==
+										baseTuning.idleRPM && (
+										<span
+											className={
+												playerTuning.idleRPM >
+												baseTuning.idleRPM
+													? 'text-yellow-400'
+													: 'text-cyan-400'
+											}
+										>
+											(
+											{playerTuning.idleRPM >
+											baseTuning.idleRPM
+												? '+'
+												: ''}
+											{(
+												playerTuning.idleRPM -
+												baseTuning.idleRPM
+											).toFixed(0)}
+											)
+										</span>
+									)}
+								</div>
+								<div className="text-xs text-gray-300 font-mono">
+									Flywheel Mass:{' '}
+									{playerTuning.flywheelMass.toFixed(1)}{' '}
+									{playerTuning.flywheelMass !==
+										baseTuning.flywheelMass && (
+										<span
+											className={
+												playerTuning.flywheelMass <
+												baseTuning.flywheelMass
+													? 'text-green-400'
+													: 'text-red-400'
+											}
+										>
+											(
+											{playerTuning.flywheelMass >
+											baseTuning.flywheelMass
+												? '+'
+												: ''}
+											{(
+												playerTuning.flywheelMass -
+												baseTuning.flywheelMass
+											).toFixed(1)}
+											)
+										</span>
+									)}
+								</div>
+							</div>
+
+							{/* Physics Stats */}
+							<div className="space-y-1">
+								<div className="text-[10px] text-purple-400 font-bold uppercase mb-2">
+									Physics
+								</div>
+								<div className="text-xs text-gray-300 font-mono">
+									Mass: {playerTuning.mass.toFixed(0)}{' '}
+									{playerTuning.mass !== baseTuning.mass && (
+										<span
+											className={
+												playerTuning.mass <
+												baseTuning.mass
+													? 'text-green-400'
+													: 'text-red-400'
+											}
+										>
+											(
+											{playerTuning.mass > baseTuning.mass
+												? '+'
+												: ''}
+											{(
+												playerTuning.mass -
+												baseTuning.mass
+											).toFixed(0)}
+											)
+										</span>
+									)}
+								</div>
+								<div className="text-xs text-gray-300 font-mono">
+									Drag Coeff:{' '}
+									{playerTuning.dragCoefficient.toFixed(2)}{' '}
+									{playerTuning.dragCoefficient !==
+										baseTuning.dragCoefficient && (
+										<span
+											className={
+												playerTuning.dragCoefficient <
+												baseTuning.dragCoefficient
+													? 'text-green-400'
+													: 'text-red-400'
+											}
+										>
+											(
+											{playerTuning.dragCoefficient >
+											baseTuning.dragCoefficient
+												? '+'
+												: ''}
+											{(
+												playerTuning.dragCoefficient -
+												baseTuning.dragCoefficient
+											).toFixed(2)}
+											)
+										</span>
+									)}
+								</div>
+								<div className="text-xs text-gray-300 font-mono">
+									Tire Grip:{' '}
+									{playerTuning.tireGrip.toFixed(1)}{' '}
+									{playerTuning.tireGrip !==
+										baseTuning.tireGrip && (
+										<span
+											className={
+												playerTuning.tireGrip >
+												baseTuning.tireGrip
+													? 'text-green-400'
+													: 'text-red-400'
+											}
+										>
+											(
+											{playerTuning.tireGrip >
+											baseTuning.tireGrip
+												? '+'
+												: ''}
+											{(
+												playerTuning.tireGrip -
+												baseTuning.tireGrip
+											).toFixed(1)}
+											)
+										</span>
+									)}
+								</div>
+								<div className="text-xs text-gray-300 font-mono">
+									Braking Force:{' '}
+									{playerTuning.brakingForce.toFixed(0)}{' '}
+									{playerTuning.brakingForce !==
+										baseTuning.brakingForce && (
+										<span
+											className={
+												playerTuning.brakingForce >
+												baseTuning.brakingForce
+													? 'text-green-400'
+													: 'text-red-400'
+											}
+										>
+											(
+											{playerTuning.brakingForce >
+											baseTuning.brakingForce
+												? '+'
+												: ''}
+											{(
+												playerTuning.brakingForce -
+												baseTuning.brakingForce
+											).toFixed(0)}
+											)
+										</span>
+									)}
+								</div>
+							</div>
+
+							{/* Audio Stats */}
+							<div className="space-y-1">
+								<div className="text-[10px] text-orange-400 font-bold uppercase mb-2">
+									Audio
+								</div>
+								<div className="text-xs text-gray-300 font-mono">
+									Cylinders:{' '}
+									{playerTuning.cylinders.toFixed(0)}{' '}
+									{playerTuning.cylinders !==
+										baseTuning.cylinders && (
+										<span
+											className={
+												playerTuning.cylinders >
+												baseTuning.cylinders
+													? 'text-green-400'
+													: 'text-red-400'
+											}
+										>
+											(
+											{playerTuning.cylinders >
+											baseTuning.cylinders
+												? '+'
+												: ''}
+											{(
+												playerTuning.cylinders -
+												baseTuning.cylinders
+											).toFixed(0)}
+											)
+										</span>
+									)}
+								</div>
+								<div className="text-xs text-gray-300 font-mono">
+									Exhaust Open:{' '}
+									{playerTuning.exhaustOpenness.toFixed(1)}{' '}
+									{playerTuning.exhaustOpenness !==
+										baseTuning.exhaustOpenness && (
+										<span
+											className={
+												playerTuning.exhaustOpenness >
+												baseTuning.exhaustOpenness
+													? 'text-yellow-400'
+													: 'text-cyan-400'
+											}
+										>
+											(
+											{playerTuning.exhaustOpenness >
+											baseTuning.exhaustOpenness
+												? '+'
+												: ''}
+											{(
+												playerTuning.exhaustOpenness -
+												baseTuning.exhaustOpenness
+											).toFixed(1)}
+											)
+										</span>
+									)}
+								</div>
+								<div className="text-xs text-gray-300 font-mono">
+									Turbo Intensity:{' '}
+									{playerTuning.turboIntensity.toFixed(1)}{' '}
+									{playerTuning.turboIntensity !==
+										baseTuning.turboIntensity && (
+										<span
+											className={
+												playerTuning.turboIntensity >
+												baseTuning.turboIntensity
+													? 'text-green-400'
+													: 'text-red-400'
+											}
+										>
+											(
+											{playerTuning.turboIntensity >
+											baseTuning.turboIntensity
+												? '+'
+												: ''}
+											{(
+												playerTuning.turboIntensity -
+												baseTuning.turboIntensity
+											).toFixed(1)}
+											)
+										</span>
+									)}
+								</div>
+								<div className="text-xs text-gray-300 font-mono">
+									Backfire Aggr.:{' '}
+									{playerTuning.backfireAggression.toFixed(1)}{' '}
+									{playerTuning.backfireAggression !==
+										baseTuning.backfireAggression && (
+										<span
+											className={
+												playerTuning.backfireAggression >
+												baseTuning.backfireAggression
+													? 'text-yellow-400'
+													: 'text-cyan-400'
+											}
+										>
+											(
+											{playerTuning.backfireAggression >
+											baseTuning.backfireAggression
+												? '+'
+												: ''}
+											{(
+												playerTuning.backfireAggression -
+												baseTuning.backfireAggression
+											).toFixed(1)}
+											)
+										</span>
+									)}
+								</div>
+							</div>
+
+							{/* Transmission Stats */}
+							<div className="space-y-1">
+								<div className="text-[10px] text-indigo-400 font-bold uppercase mb-2">
+									Transmission
+								</div>
+								<div className="text-xs text-gray-300 font-mono">
+									Compression:{' '}
+									{playerTuning.compressionRatio.toFixed(1)}{' '}
+									{playerTuning.compressionRatio !==
+										baseTuning.compressionRatio && (
+										<span
+											className={
+												playerTuning.compressionRatio >
+												baseTuning.compressionRatio
+													? 'text-green-400'
+													: 'text-red-400'
+											}
+										>
+											(
+											{playerTuning.compressionRatio >
+											baseTuning.compressionRatio
+												? '+'
+												: ''}
+											{(
+												playerTuning.compressionRatio -
+												baseTuning.compressionRatio
+											).toFixed(1)}
+											)
+										</span>
+									)}
+								</div>
+								<div className="text-xs text-gray-300 font-mono">
+									Final Drive:{' '}
+									{playerTuning.finalDriveRatio.toFixed(1)}{' '}
+									{playerTuning.finalDriveRatio !==
+										baseTuning.finalDriveRatio && (
+										<span
+											className={
+												playerTuning.finalDriveRatio >
+												baseTuning.finalDriveRatio
+													? 'text-yellow-400'
+													: 'text-cyan-400'
+											}
+										>
+											(
+											{playerTuning.finalDriveRatio >
+											baseTuning.finalDriveRatio
+												? '+'
+												: ''}
+											{(
+												playerTuning.finalDriveRatio -
+												baseTuning.finalDriveRatio
+											).toFixed(1)}
+											)
+										</span>
+									)}
+								</div>
+							</div>
+						</div>
+						<div className="text-[10px] text-gray-600 mt-3 pt-3 border-t border-gray-800">
+							Stats show base value with +/- changes from
+							installed mods and tuning
+						</div>
+					</div>
+				</div>
 				<div>
 					<label className="text-xs text-gray-500 block mb-1">
 						FINAL DRIVE RATIO ({playerTuning.finalDriveRatio})
@@ -280,49 +683,6 @@ const TuningTab: React.FC<TuningTabProps> = ({
 								</span>
 							</div>
 						))}
-					</div>
-				</div>
-
-				{/* Torque Curve */}
-				<div className="mt-6">
-					<label className="text-xs text-gray-500 block mb-3 font-bold">
-						TORQUE CURVE
-					</label>
-					<div className="space-y-2">
-						{playerTuning.torqueCurve.map((point, idx) => (
-							<div key={idx} className="flex items-center gap-3">
-								<span className="text-xs text-gray-400 w-20">
-									{point.rpm} RPM:
-								</span>
-								<div className="flex-1">
-									<PixelSlider
-										min={0.1}
-										max={1.0}
-										step={0.05}
-										value={point.factor}
-										onChange={(val) => {
-											const newCurve = [
-												...playerTuning.torqueCurve,
-											];
-											newCurve[idx] = {
-												...point,
-												factor: val,
-											};
-											onManualTuningChange({
-												torqueCurve: newCurve,
-											});
-										}}
-										color="orange"
-									/>
-								</div>
-								<span className="text-xs text-white font-mono w-12 text-right">
-									{(point.factor * 100).toFixed(0)}%
-								</span>
-							</div>
-						))}
-					</div>
-					<div className="text-[10px] text-gray-600 mt-2">
-						Adjust power delivery at different RPM ranges
 					</div>
 				</div>
 
