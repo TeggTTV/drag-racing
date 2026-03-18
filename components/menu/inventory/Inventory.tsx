@@ -89,20 +89,24 @@ export const Inventory: React.FC<InventoryProps> = ({
 	const [currentPage, setCurrentPage] = useState(1);
 
 	// Auto-equip best configuration
-	const handleApplyBest = () => {
+	const handleApplyBest = async () => {
 		// Find the best loadout
 		const bestItems = findBestLoadout(items);
 
-		// Equip each item with a small delay for visual feedback
-		bestItems.forEach((item, index) => {
-			setTimeout(() => {
-				// Use center of screen as equip coordinates
-				onEquip(item, {
-					x: window.innerWidth / 2,
-					y: window.innerHeight / 2,
-				});
-			}, index * 100); // 100ms delay between each
-		});
+		if (bestItems.length === 0) return;
+
+		// Equip all items simultaneously
+		// The onEquip function returns XP gained, so we can collect them all
+		const equipPromises = bestItems.map((item) =>
+			onEquip(item, {
+				x: window.innerWidth / 2,
+				y: window.innerHeight / 2,
+			})
+		);
+
+		// Wait for all equips to complete
+		// This will trigger a combined XP animation in the parent component
+		await Promise.all(equipPromises);
 	};
 
 	// Helper to sort items

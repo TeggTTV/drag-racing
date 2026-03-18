@@ -127,6 +127,11 @@ export const Garage: React.FC<GarageProps> = ({
 		}[]
 	>([]);
 
+	// Pending XP accumulator for batch processing
+	const xpBatchTimerRef = useRef<NodeJS.Timeout | null>(null);
+	const pendingXpRef = useRef<number>(0);
+	const batchCoordsRef = useRef<{ x: number; y: number } | null>(null);
+
 	const handleEquipWrapper = async (
 		item: InventoryItem,
 		coords?: { x: number; y: number }
@@ -151,21 +156,44 @@ export const Garage: React.FC<GarageProps> = ({
 				]);
 			}
 
-			// XP Animation
+			// Batched XP Animation
 			if (xp > 0 && masteryBarRef.current) {
-				const barRect = masteryBarRef.current.getBoundingClientRect();
-				const id = Math.random().toString(36).substr(2, 9);
-				setXpAnimations((prev) => [
-					...prev,
-					{
-						id,
-						startX: coords.x,
-						startY: coords.y,
-						endX: barRect.left + barRect.width / 2,
-						endY: barRect.top + barRect.height / 2,
-						amount: xp,
-					},
-				]);
+				// Accumulate XP for batching
+				pendingXpRef.current += xp;
+				batchCoordsRef.current = coords;
+
+				// Clear existing timer
+				if (xpBatchTimerRef.current) {
+					clearTimeout(xpBatchTimerRef.current);
+				}
+
+				// Set a new timer to flush the batch
+				xpBatchTimerRef.current = setTimeout(() => {
+					const totalXp = pendingXpRef.current;
+					const batchCoords = batchCoordsRef.current;
+
+					if (totalXp > 0 && batchCoords && masteryBarRef.current) {
+						const barRect =
+							masteryBarRef.current.getBoundingClientRect();
+						const id = Math.random().toString(36).substr(2, 9);
+						setXpAnimations((prev) => [
+							...prev,
+							{
+								id,
+								startX: batchCoords.x,
+								startY: batchCoords.y,
+								endX: barRect.left + barRect.width / 2,
+								endY: barRect.top + barRect.height / 2,
+								amount: totalXp,
+							},
+						]);
+					}
+
+					// Reset batch state
+					pendingXpRef.current = 0;
+					batchCoordsRef.current = null;
+					xpBatchTimerRef.current = null;
+				}, 150); // 150ms batch window - allows multiple equips to be grouped
 			}
 		}
 	};

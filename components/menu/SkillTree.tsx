@@ -101,6 +101,10 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ onClose }) => {
 		const parent = SKILL_TREE.find((n) => n.id === node.parentId);
 		if (!parent) return null;
 
+		// Node size is 64px (w-16), radius is 32px
+		// Nodes are centered on their position with negative margins
+		const NODE_RADIUS = 32;
+
 		const x1 = parent.x * SCALE_X + CENTER_X;
 		const y1 = parent.y * SCALE_Y + CENTER_Y;
 		const x2 = node.x * SCALE_X + CENTER_X;
@@ -313,7 +317,7 @@ export const SkillTree: React.FC<SkillTreeProps> = ({ onClose }) => {
 					</div>
 
 					<svg className="absolute inset-0 w-full h-full z-0 pointer-events-none">
-						{SKILL_TREE.map(renderConnection)}
+						<g>{SKILL_TREE.map(renderConnection)}</g>
 					</svg>
 
 					<div className="absolute inset-0 z-10 w-full h-full pointer-events-none">
